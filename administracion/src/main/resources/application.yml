@@ -1,0 +1,19 @@
+server:
+  port: 9090
+
+spring:
+  application:
+    name: Administracion
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/administracion
+    username: postgres
+    password: Tecs2026*
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true

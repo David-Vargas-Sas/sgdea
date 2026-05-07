@@ -2,12 +2,19 @@ type Query {
     companies: [Company!]!
     companyById(id: ID!): Company
     companyByCode(code: String!): Company
+    users: [User!]!
+    userById(id: ID!): User
+    userByUsername(username: String!): User
+    userByEmail(email: String!): User
 }
 
 type Mutation {
     createCompany(input: CompanyCreateInput!): Company!
     updateCompany(id: ID!, input: CompanyUpdateInput!): Company!
     deleteCompany(id: ID!): Boolean!
+    createUser(input: UserCreateInput!): User!
+    updateUser(id: ID!, input: UserUpdateInput!): User!
+    deleteUser(id: ID!): Boolean!
 }
 
 type Company {
@@ -39,6 +46,42 @@ input CompanyUpdateInput {
     nit: String
     dv: Int
     logoPath: String
+    active: Boolean
+    updatedBy: String
+}
+
+type User {
+    id: ID!
+    companyId: ID
+    companyName: String
+    username: String!
+    email: String!
+    fullName: String!
+    role: String!
+    active: Boolean!
+    createdAt: String
+    createdBy: String
+    updatedAt: String
+    updatedBy: String
+}
+
+input UserCreateInput {
+    companyId: ID
+    username: String!
+    email: String!
+    fullName: String!
+    password: String!
+    role: String!
+    createdBy: String
+}
+
+input UserUpdateInput {
+    companyId: ID
+    username: String
+    email: String
+    fullName: String
+    password: String
+    role: String
     active: Boolean
     updatedBy: String
 }

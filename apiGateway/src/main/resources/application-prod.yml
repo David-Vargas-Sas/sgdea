@@ -1,0 +1,64 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  profiles:
+    active: prod
+  application:
+    name: apiGateway
+
+  # En producción estas variables deben estar provistas por el entorno / orquestador
+  zipkin:
+    base-url: ${ZIPKIN_URL}
+
+  security:
+    oauth2:
+      client:
+        registration:
+          oidc:
+            client-id: ${OAUTH_CLIENT_ID}
+            client-secret: ${OAUTH_CLIENT_SECRET}
+        provider:
+          oidc:
+            issuer-uri: ${OAUTH_ISSUER_URI}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: INFO
+    com.sgdea: INFO
+
+services:
+  administracion:
+    graphql-url: ${ADMIN_SERVICE_GRAPHQL_URL}
+
+# Notas de producción:
+# - Proporcione ZIPKIN_URL, OAUTH y ADMIN_SERVICE_GRAPHQL_URL desde secretos/variables de entorno.
+# Redis en producción (proporcionar desde entorno/orquestador)
+spring:
+  redis:
+    host: ${SPRING_REDIS_HOST}
+    port: ${SPRING_REDIS_PORT:6379}
+
+# Añadir RequestRateLimiter a la ruta del gateway en producción (usa Redis configurado arriba)
+cloud:
+  gateway:
+    routes:
+      - id: administracion
+        uri: ${ADMIN_SERVICE_URL:http://administracion:9090}
+        predicates:
+          - Path=/administracion/**
+        filters:
+          - name: RequestRateLimiter
+            args:
+              redis-rate-limiter.replenishRate: 10
+              redis-rate-limiter.burstCapacity: 20
+# - Limite los endpoints del actuator en producción según su política de seguridad.

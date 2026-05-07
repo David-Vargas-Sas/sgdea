@@ -1,0 +1,61 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: apiGateway
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  graphql:
+    path: /graphql
+
+  cloud :
+    gateway:
+      routes:
+         - id: administracion
+           uri: http://localhost:9090
+           predicates:
+              - Path=/administracion/**
+           filters:
+              - name: RequestRateLimiter
+                args:
+                  redis-rate-limiter.replenishRate: 10
+                  redis-rate-limiter.burstCapacity: 20
+
+  # Zipkin / tracing configuration (development default)
+  zipkin:
+    base-url: ${ZIPKIN_URL:http://localhost:9411}
+
+  security:
+    oauth2:
+      client:
+        registration:
+          oidc:
+            client-id: ${OAUTH_CLIENT_ID:}
+            client-secret: ${OAUTH_CLIENT_SECRET:}
+        provider:
+          oidc:
+            issuer-uri: ${OAUTH_ISSUER_URI:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    root: INFO
+    com.sgdea: DEBUG
+
+services:
+  administracion:
+    graphql-url: ${ADMIN_SERVICE_GRAPHQL_URL:http://localhost:9090/graphql}
+
+# Notas:
+# - Use variables de entorno para las credenciales y URLs en producción.
+# - Ajuste `ADMIN_SERVICE_GRAPHQL_URL` para apuntar al endpoint GraphQL del microservicio de administración.

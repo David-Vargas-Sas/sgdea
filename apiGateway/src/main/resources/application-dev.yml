@@ -1,0 +1,45 @@
+server:
+  port: 8080
+
+spring:
+  profiles:
+    active: dev
+
+  # Rutas y puertos para entorno de desarrollo (el gateway enruta a los microservicios locales)
+  cloud:
+    gateway:
+      routes:
+        - id: administracion
+          uri: http://localhost:9090
+          predicates:
+            - Path=/administracion/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+        - id: administracion-graphql
+          uri: http://localhost:9090
+          predicates:
+            - Path=/graphql
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+
+# Variables de servicio (útiles para clientes GraphQL u otras integraciones en dev)
+ADMIN_SERVICE_URL: http://localhost:9090
+ADMIN_SERVICE_GRAPHQL_URL: http://localhost:9090/graphql
+
+# Tracing / observabilidad en dev
+ZIPKIN_URL: http://localhost:9411
+
+logging:
+  level:
+    root: DEBUG
+    com.sgdea: DEBUG
+
+# Notas:
+# - Este archivo está pensado para desarrollo local. En producción use `application-prod.yml` y variables/secretos
+#   gestionados por su orquestador (K8s, Docker Compose, etc.).

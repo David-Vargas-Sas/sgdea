@@ -1,0 +1,40 @@
+server:
+  port: ${SERVER_PORT:9090}
+
+spring:
+  profiles:
+    active: prod
+
+  datasource:
+    # En producción las variables deben proporcionarse sin valor por defecto
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
+  jpa:
+    hibernate:
+      # En producción conviene validar el esquema y no modificarlo automáticamente
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: INFO
+    com.sgdea: INFO
+
+# Notas:
+# - Ponga las variables de conexión (SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME,
+#   SPRING_DATASOURCE_PASSWORD) en el entorno o en el orquestador (K8s secrets, docker-compose env, etc.)
+# - Ajuste `management.endpoints.web.exposure.include` según lo que quiera exponer en producción.

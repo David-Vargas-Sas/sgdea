@@ -8,6 +8,7 @@ import com.sgdea.multitenancy.multitenancy.licenseType.application.usecase.Licen
 import com.sgdea.multitenancy.multitenancy.licenseType.domain.model.LicenseType;
 import com.sgdea.multitenancy.multitenancy.licenseType.domain.repository.LicenseTypeRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -19,14 +20,11 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@AllArgsConstructor
 public class LicenseTypeService implements LicenseTypeUseCase {
     private final LicenseTypeRepository repository;
     private final LicenseTypeMapper mapper;
 
-    public LicenseTypeService(LicenseTypeRepository repository, LicenseTypeMapper mapper) {
-        this.repository = repository;
-        this.mapper = mapper;
-    }
 
     @Override
     @Transactional(readOnly = true)
@@ -106,7 +104,6 @@ public class LicenseTypeService implements LicenseTypeUseCase {
     }
 
     private LicenseType getEntityById(UUID id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("No existe un tipo de licencia con id " + id));
+        return repository.getReferenceById(id);
     }
 }

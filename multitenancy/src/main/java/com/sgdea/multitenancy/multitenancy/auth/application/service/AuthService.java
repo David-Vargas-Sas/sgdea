@@ -15,16 +15,20 @@ import com.sgdea.multitenancy.multitenancy.companyUser.domain.repository.Company
 import com.sgdea.multitenancy.multitenancy.user.domain.model.User;
 import com.sgdea.multitenancy.multitenancy.user.domain.repository.UserRepository;
 import com.sgdea.multitenancy.multitenancy.securityConfig.infrastructure.security.JwtTokenService;
+import com.sgdea.multitenancy.multitenancy.securityConfig.infrastructure.security.JwtSessionCacheService;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.AllArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
+@AllArgsConstructor
 public class AuthService implements AuthUseCase {
     private final UserRepository userRepository;
     private final CompanyUserRepository companyUserRepository;
@@ -32,27 +36,13 @@ public class AuthService implements AuthUseCase {
     private final AuthSessionRepository authSessionRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService jwtTokenService;
+    private final JwtSessionCacheService jwtSessionCacheService;
+    @Value("${security.jwt.access-token-minutes:30}")
     private final int accessTokenMinutes;
+    @Value("${security.jwt.refresh-token-hours:8}")
     private final int refreshTokenHours;
 
-    public AuthService(
-            UserRepository userRepository,
-            CompanyUserRepository companyUserRepository,
-            CompanyDatabaseConnectionRepository connectionRepository,
-            AuthSessionRepository authSessionRepository,
-            PasswordEncoder passwordEncoder,
-            JwtTokenService jwtTokenService,
-            @Value("${security.jwt.access-token-minutes:30}") int accessTokenMinutes,
-            @Value("${security.jwt.refresh-token-hours:8}") int refreshTokenHours) {
-        this.userRepository = userRepository;
-        this.companyUserRepository = companyUserRepository;
-        this.connectionRepository = connectionRepository;
-        this.authSessionRepository = authSessionRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtTokenService = jwtTokenService;
-        this.accessTokenMinutes = accessTokenMinutes;
-        this.refreshTokenHours = refreshTokenHours;
-    }
+
 
     @Override
     @Transactional
@@ -76,6 +66,8 @@ public class AuthService implements AuthUseCase {
         CompanyDatabaseConnection connection = getDefaultActiveConnection(company.getId());
         closeActiveSessions(user.getId());
         AuthSession session = createSession(user, company, connection);
+        // Cachear la sesión en Redis para evitar consultas a BD en cada request
+        jwtSessionCacheService.cacheSession(session);
         return buildLoginResponse(session);
     }
 
@@ -92,7 +84,10 @@ public class AuthService implements AuthUseCase {
         LocalDateTime accessExpiresAt = LocalDateTime.now().plusMinutes(accessTokenMinutes);
         session.setToken(jwtTokenService.generateToken(session.getUser(), session.getCompany(), session.getConnection(), accessExpiresAt));
         session.setExpiresAt(accessExpiresAt);
-        return buildLoginResponse(authSessionRepository.save(session));
+        AuthSession saved = authSessionRepository.save(session);
+        // Actualizar el caché con el nuevo token
+        jwtSessionCacheService.cacheSession(saved);
+        return buildLoginResponse(saved);
     }
 
     @Override
@@ -121,15 +116,35 @@ public class AuthService implements AuthUseCase {
         session.setActive(false);
         session.setLoggedOutAt(LocalDateTime.now());
         authSessionRepository.save(session);
+        // Invalidar la sesión en Redis (marcar como inactiva para absorber requests en vuelo)
+        jwtSessionCacheService.markSessionInactive(token);
         return true;
     }
 
+    /**
+     * Cierra todas las sesiones activas de un usuario.
+     *
+     * <p><b>Corrección N+1</b>: el patrón anterior hacía 1 SELECT de entidades completas
+     * más N UPDATEs individuales (uno por sesión). Ahora se ejecutan exactamente
+     * <strong>2 queries</strong> independientemente de cuántas sesiones tenga el usuario:
+     * <ol>
+     *   <li>SELECT de tokens (proyección escalar) → invalidar caché Redis.</li>
+     *   <li>UPDATE masivo con {@code @Modifying @Query} → una sola sentencia SQL.</li>
+     * </ol>
+     */
     private void closeActiveSessions(Long userId) {
-        authSessionRepository.findByUserIdAndActiveTrue(userId).forEach(session -> {
-            session.setActive(false);
-            session.setLoggedOutAt(LocalDateTime.now());
-            authSessionRepository.save(session);
-        });
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1. Obtener solo los tokens (proyección escalar) para evicción Redis.
+        //    No carga entidades completas ni relaciones LAZY.
+        List<String> activeTokens = authSessionRepository.findActiveTokensByUserId(userId);
+
+        // 2. UPDATE masivo: una sola sentencia SQL sin importar cuántas sesiones haya.
+        authSessionRepository.deactivateSessionsByUserId(userId, now);
+
+        // 3. Evictar del caché Redis los tokens invalidados.
+        //    (operación local — no genera queries adicionales a BD)
+        activeTokens.forEach(jwtSessionCacheService::evictSession);
     }
 
     private CompanyUser getActiveCompanyUser(Long userId) {

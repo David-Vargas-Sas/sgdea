@@ -1,0 +1,126 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Perfil de PRODUCCIÓN — microservicio multitenancy.
+# Sobreescribe los valores base de application.yaml.
+# TODAS las variables marcadas sin default DEBEN estar presentes en el entorno.
+# ─────────────────────────────────────────────────────────────────────────────
+
+server:
+  port: ${SERVER_PORT:8081}
+  tomcat:
+    threads:
+      # 200 hilos → suficientes para absorber ráfagas; el rate limiter del Gateway
+      # evita que lleguen más de burst_capacity req/s sin JWT válido.
+      max: ${TOMCAT_MAX_THREADS:200}
+      min-spare: ${TOMCAT_MIN_SPARE_THREADS:20}
+    connection-timeout: 20000
+    accept-count: 100
+
+spring:
+  profiles:
+    active: prod
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      # ── Pool FIJO — tamaño calculado con la fórmula de PostgreSQL ──────────
+      #
+      #   pool_size ≈ (núcleos_CPU × 2) + effective_spindle_drives
+      #   SSD/NVMe → spindle = 1   HDD → spindle = número de discos
+      #
+      #   Ejemplos:
+      #     2 vCPUs + SSD  →  (2×2)+1  = 5  (mínimo absoluto)
+      #     4 vCPUs + SSD  →  (4×2)+1  = 9  (óptimo DB-server)
+      #     8 vCPUs + SSD  →  (8×2)+1  = 17 (DB de alta concurrencia)
+      #
+      #   Con 200 hilos Tomcat, Redis cacheando JWT (pocos queries por request)
+      #   y Kotlin coroutines/Spring MVC bloqueante, recomendamos:
+      #     HIKARI_POOL_SIZE = 25  (entornos medianos)
+      #     HIKARI_POOL_SIZE = 50  (entornos de alto tráfico sin Redis)
+      #
+      #   REGLA CRÍTICA: pool_size < max_threads
+      #   Los threads Tomcat NO golpean BD todos al mismo tiempo; muchos están
+      #   en I/O de red, serialización, caché Redis, etc.
+      #
+      maximum-pool-size: ${HIKARI_POOL_SIZE:25}
+      minimum-idle: ${HIKARI_POOL_SIZE:25}          # Pool fijo: min = max
+
+      # ── Timeouts ────────────────────────────────────────────────────────────
+      connection-timeout: 20000                     # 20 s — lanza excepción si no hay conexión libre
+      validation-timeout: 3000                      # 3 s — más estricto en prod (< connection-timeout)
+      max-lifetime: 1800000                         # 30 min — renovar antes del server-side timeout
+      idle-timeout: 600000                          # 10 min — aplica solo si min-idle < max-pool
+
+      # ── Keepalive ───────────────────────────────────────────────────────────
+      # Imprescindible en cloud (AWS RDS, GCP Cloud SQL, Azure DB) donde los
+      # load balancers cierran conexiones inactivas > 5 min.
+      keepalive-time: 60000                         # Ping cada 60 s
+
+      # ── Detección de fugas ──────────────────────────────────────────────────
+      # En producción, umbral alto para evitar falsos positivos en operaciones lentas.
+      # En staging/dev, usar HIKARI_LEAK_THRESHOLD=15000.
+      leak-detection-threshold: ${HIKARI_LEAK_THRESHOLD:60000}  # 60 s en prod
+
+      pool-name: MultitenancyHikariPool
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none                                # NUNCA modificar esquema en prod automáticamente
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        # Estadísticas de Hibernate (desactivar en prod para menor overhead)
+        generate_statistics: false
+
+  redis:
+    host: ${SPRING_REDIS_HOST}
+    port: ${SPRING_REDIS_PORT:6379}
+    lettuce:
+      pool:
+        max-active: 16
+        max-idle: 8
+        min-idle: 2
+        max-wait: 2000ms
+
+logging:
+  level:
+    root: INFO
+    com.sgdea: INFO
+    com.zaxxer.hikari: WARN                         # Solo errores del pool en prod
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+security:
+  enabled: ${SECURITY_ENABLED:true}                 # Seguridad ACTIVA en producción
+  jwt:
+    issuer: ${SECURITY_JWT_ISSUER:sgdea-multitenancy}
+    secret: ${SECURITY_JWT_SECRET}                  # OBLIGATORIO — sin default en prod
+    access-token-minutes: ${SECURITY_JWT_ACCESS_TOKEN_MINUTES:30}
+    refresh-token-hours: ${SECURITY_JWT_REFRESH_TOKEN_HOURS:8}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Variables de entorno requeridas en producción:
+#   SPRING_DATASOURCE_URL               URL JDBC de PostgreSQL (OBLIGATORIO)
+#   SPRING_DATASOURCE_USERNAME          Usuario de BD (OBLIGATORIO)
+#   SPRING_DATASOURCE_PASSWORD          Contraseña de BD (OBLIGATORIO)
+#   SPRING_REDIS_HOST                   Host de Redis (OBLIGATORIO)
+#   SPRING_REDIS_PORT                   Puerto Redis (default: 6379)
+#   SECURITY_JWT_SECRET                 Secreto HMAC-SHA256 compartido con Gateway (OBLIGATORIO)
+#   SECURITY_JWT_ISSUER                 Issuer JWT (default: sgdea-multitenancy)
+#   HIKARI_POOL_SIZE                    Conexiones BD (default: 25; fórmula: CPUs×2+1)
+#   HIKARI_LEAK_THRESHOLD               ms antes de WARNING por fuga (default: 60000)
+#   TOMCAT_MAX_THREADS                  Hilos Tomcat (default: 200)
+#   TOMCAT_MIN_SPARE_THREADS            Hilos mínimos en espera (default: 20)
+#   SERVER_PORT                         Puerto del servicio (default: 8081)
+# ─────────────────────────────────────────────────────────────────────────────
+

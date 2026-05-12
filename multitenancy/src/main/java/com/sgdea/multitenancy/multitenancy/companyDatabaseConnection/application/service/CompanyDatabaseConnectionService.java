@@ -10,6 +10,7 @@ import com.sgdea.multitenancy.multitenancy.company.domain.repository.CompanyRepo
 import com.sgdea.multitenancy.multitenancy.companyDatabaseConnection.domain.model.CompanyDatabaseConnection;
 import com.sgdea.multitenancy.multitenancy.companyDatabaseConnection.domain.repository.CompanyDatabaseConnectionRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -20,18 +21,12 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@AllArgsConstructor
 public class CompanyDatabaseConnectionService implements CompanyDatabaseConnectionUseCase {
     private final CompanyDatabaseConnectionRepository repository;
     private final CompanyRepository companyRepository;
     private final CompanyDatabaseConnectionMapper mapper;
 
-    public CompanyDatabaseConnectionService(CompanyDatabaseConnectionRepository repository,
-                                            CompanyRepository companyRepository,
-                                            CompanyDatabaseConnectionMapper mapper) {
-        this.repository = repository;
-        this.companyRepository = companyRepository;
-        this.mapper = mapper;
-    }
 
     @Override
     @Transactional(readOnly = true)
@@ -107,12 +102,10 @@ public class CompanyDatabaseConnectionService implements CompanyDatabaseConnecti
     }
 
     private CompanyDatabaseConnection getEntityById(UUID id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("No existe una conexion de base de datos con id " + id));
+        return repository.getReferenceById(id);
     }
 
     private Company getCompany(UUID id) {
-        return companyRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("No existe una empresa con id " + id));
+        return companyRepository.getReferenceById(id);
     }
 }

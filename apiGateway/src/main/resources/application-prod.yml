@@ -4,23 +4,84 @@ server:
 spring:
   profiles:
     active: prod
+
   application:
     name: apiGateway
 
-  # En producción estas variables deben estar provistas por el entorno / orquestador
-  zipkin:
-    base-url: ${ZIPKIN_URL}
+  # Redis en producción — todos los valores desde el orquestador/secretos
+  redis:
+    host: ${SPRING_REDIS_HOST}
+    port: ${SPRING_REDIS_PORT:6379}
+    lettuce:
+      pool:
+        max-active: 16
+        max-idle: 8
+        min-idle: 2
 
-  security:
-    oauth2:
-      client:
-        registration:
-          oidc:
-            client-id: ${OAUTH_CLIENT_ID}
-            client-secret: ${OAUTH_CLIENT_SECRET}
-        provider:
-          oidc:
-            issuer-uri: ${OAUTH_ISSUER_URI}
+  # OAuth2 client deshabilitado: el Gateway usa HMAC-SHA256 shared-secret JWT.
+  # No se requiere proveedor OIDC externo en esta configuración.
+
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 5000
+        response-timeout: 30s
+        pool:
+          type: ELASTIC
+          max-connections: 500
+          acquire-timeout: 45000
+
+      routes:
+        # ── Administración ──────────────────────────────────────────────────
+        - id: administracion
+          uri: ${ADMIN_SERVICE_URL:http://administracion:9090}
+          predicates:
+            - Path=/administracion/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+
+        - id: administracion-graphql
+          uri: ${ADMIN_SERVICE_URL:http://administracion:9090}
+          predicates:
+            - Path=/graphql
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+
+        # ── Multitenancy — Auth (rutas públicas) ────────────────────────────
+        # Límite bajo para proteger login/refresh de ataques de fuerza bruta.
+        # KeyResolver: IP del cliente (por X-Forwarded-For o remoteAddress).
+        - id: multitenancy-auth
+          uri: ${MULTITENANCY_SERVICE_URL:http://multitenancy:8081}
+          predicates:
+            - Path=/multitenancy/auth/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 5
+                redis-rate-limiter.burstCapacity: 10
+                redis-rate-limiter.requestedTokens: 1
+
+        # ── Multitenancy — API (rutas protegidas con JWT) ───────────────────
+        # Límite más alto para uso normal de la API.
+        # KeyResolver: email del usuario (X-User-Email inyectado por JwtClaimsRelayFilter).
+        - id: multitenancy
+          uri: ${MULTITENANCY_SERVICE_URL:http://multitenancy:8081}
+          predicates:
+            - Path=/multitenancy/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
 
 management:
   endpoints:
@@ -30,6 +91,10 @@ management:
   endpoint:
     health:
       show-details: never
+  # Zipkin tracing (Spring Boot 3.x — reemplaza spring.zipkin.base-url de 2.x)
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL}/api/v2/spans
 
 logging:
   level:
@@ -39,26 +104,24 @@ logging:
 services:
   administracion:
     graphql-url: ${ADMIN_SERVICE_GRAPHQL_URL}
+  multitenancy:
+    url: ${MULTITENANCY_SERVICE_URL:http://multitenancy:8081}
 
-# Notas de producción:
-# - Proporcione ZIPKIN_URL, OAUTH y ADMIN_SERVICE_GRAPHQL_URL desde secretos/variables de entorno.
-# Redis en producción (proporcionar desde entorno/orquestador)
-spring:
-  redis:
-    host: ${SPRING_REDIS_HOST}
-    port: ${SPRING_REDIS_PORT:6379}
+# ---------------------------------------------------------------------------
+# Variables de entorno requeridas en producción:
+#   SERVER_PORT               Puerto del servidor (default: 8080)
+#   SPRING_REDIS_HOST         Host de Redis
+#   SPRING_REDIS_PORT         Puerto de Redis (default: 6379)
+#   ZIPKIN_URL                URL base de Zipkin (ej: http://zipkin:9411)
+#   SECURITY_JWT_SECRET       Secreto HMAC-SHA256 compartido con multitenancy (OBLIGATORIO)
+#   SECURITY_JWT_ISSUER       Issuer JWT (default: sgdea-multitenancy)
+#   ADMIN_SERVICE_URL         URL base del microservicio de administración
+#   ADMIN_SERVICE_GRAPHQL_URL URL del endpoint GraphQL de administración
+#   MULTITENANCY_SERVICE_URL  URL base del microservicio de multitenancy
+# ---------------------------------------------------------------------------
 
-# Añadir RequestRateLimiter a la ruta del gateway en producción (usa Redis configurado arriba)
-cloud:
-  gateway:
-    routes:
-      - id: administracion
-        uri: ${ADMIN_SERVICE_URL:http://administracion:9090}
-        predicates:
-          - Path=/administracion/**
-        filters:
-          - name: RequestRateLimiter
-            args:
-              redis-rate-limiter.replenishRate: 10
-              redis-rate-limiter.burstCapacity: 20
-# - Limite los endpoints del actuator en producción según su política de seguridad.
+# JWT unificado con multitenancy — secreto compartido HMAC-SHA256
+security:
+  jwt:
+    secret: ${SECURITY_JWT_SECRET}
+    issuer: ${SECURITY_JWT_ISSUER:sgdea-multitenancy}

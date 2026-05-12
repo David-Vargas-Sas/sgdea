@@ -1,7 +1,8 @@
-# Configuración de la aplicación
-server:
-  port: ${SERVER_PORT:8081}
-# Configuración de CORS para permitir solicitudes desde el frontend
+# ─────────────────────────────────────────────────────────────────────────────
+# Configuración BASE del microservicio multitenancy.
+# Los valores con ${VAR:default} usan el default en dev local.
+# En producción, sobreescribir con variables de entorno o application-prod.yml.
+# ─────────────────────────────────────────────────────────────────────────────
 spring:
   application:
     name: multitenancy
@@ -12,15 +13,80 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/SGDEA_SUPERADMIN}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:Tecs2026*}
+    hikari:
+      # ── Tamaño del pool ────────────────────────────────────────────────────
+      # Fórmula PostgreSQL: pool_size ≈ (núcleos_CPU × 2) + spindle_drives
+      # Ej: 4 vCPUs + SSD → (4×2)+1 = 9 (óptimo del servidor DB)
+      # Con 200 hilos Tomcat y Redis cacheando sesiones JWT (pocos hits a BD),
+      # recomendamos HIKARI_POOL_SIZE=20..50 según carga real.
+      # REGLA: pool_size << max_threads (los threads no siempre golpean la BD).
+      #
+      # Pool FIJO (minimum-idle = maximum-pool-size): evita latencia por
+      # creación/destrucción de conexiones bajo carga. Recomendado por HikariCP.
+      maximum-pool-size: ${HIKARI_POOL_SIZE:20}
+      minimum-idle: ${HIKARI_POOL_SIZE:20}
+
+      # ── Timeouts ───────────────────────────────────────────────────────────
+      # Tiempo máximo esperando una conexión libre antes de lanzar excepción.
+      connection-timeout: 20000          # 20 s
+      # Tiempo máximo que una consulta de validación puede tardar.
+      validation-timeout: 5000           # 5 s (debe ser < connection-timeout)
+      # Vida máxima de cada conexión. Debe ser menor que el timeout del servidor
+      # PostgreSQL (idle_in_transaction_session_timeout, usualmente indefinido
+      # o 60 min). Se recomienda 30 min para evitar conexiones "rancias".
+      max-lifetime: 1800000              # 30 min
+      # Para pools fijos (min-idle = max), idle-timeout no aplica directamente,
+      # pero se configura por si se reduce max-pool en caliente.
+      idle-timeout: 600000               # 10 min (default HikariCP)
+
+      # ── Keepalive ──────────────────────────────────────────────────────────
+      # Envía un "SELECT 1" periódico para evitar que firewalls/load balancers
+      # cierren conexiones idle. Esencial en entornos cloud (AWS RDS, GCP Cloud SQL).
+      keepalive-time: 60000              # Ping cada 60 s
+
+      # ── Detección de fugas ─────────────────────────────────────────────────
+      # Registra un WARNING si una conexión no se devuelve al pool en este tiempo.
+      # En desarrollo: valor bajo para detectar bugs de código.
+      leak-detection-threshold: ${HIKARI_LEAK_THRESHOLD:15000}  # 15 s dev / 60 s prod
+
+      # ── Identificación ─────────────────────────────────────────────────────
+      pool-name: MultitenancyHikariPool
   # Configuración de JPA/Hibernate
   jpa:
+    # Desactivar Open-in-View: evita que la sesión JPA (y su conexión HikariCP)
+    # permanezca abierta durante la serialización JSON de la respuesta HTTP.
+    # Con open-in-view: true (default) la conexión se mantiene desde el inicio
+    # del request hasta que el response body es escrito → desperdicia conexiones
+    # del pool y puede provocar N+1 silenciosos al serializar relaciones LAZY.
+    open-in-view: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     show-sql: false
     properties:
       hibernate:
         format_sql: true
 
+  # Configuración de Redis para caché de sesiones JWT
+  # Sobreescribir SPRING_REDIS_HOST y SPRING_REDIS_PORT en producción
+  redis:
+    host: ${SPRING_REDIS_HOST:localhost}
+    port: ${SPRING_REDIS_PORT:6379}
+    lettuce:
+      pool:
+        max-active: 16
+        max-idle: 8
+        min-idle: 2
+        max-wait: 2000ms
+
+# Tomcat thread pool — configurable por entorno
+server:
+  port: ${SERVER_PORT:8081}
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:200}
+      min-spare: ${TOMCAT_MIN_SPARE_THREADS:20}
+    connection-timeout: 20000
+    accept-count: 100
 # Configuración de logging
 logging:
   level:

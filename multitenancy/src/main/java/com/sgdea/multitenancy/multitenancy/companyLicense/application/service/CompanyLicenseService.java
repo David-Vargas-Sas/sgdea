@@ -12,6 +12,7 @@ import com.sgdea.multitenancy.multitenancy.companyLicense.domain.repository.Comp
 import com.sgdea.multitenancy.multitenancy.licenseType.domain.model.LicenseType;
 import com.sgdea.multitenancy.multitenancy.licenseType.domain.repository.LicenseTypeRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.AllArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,19 +21,13 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@AllArgsConstructor
 public class CompanyLicenseService implements CompanyLicenseUseCase {
     private final CompanyLicenseRepository repository;
     private final CompanyRepository companyRepository;
     private final LicenseTypeRepository licenseTypeRepository;
     private final CompanyLicenseMapper mapper;
 
-    public CompanyLicenseService(CompanyLicenseRepository repository, CompanyRepository companyRepository,
-                                 LicenseTypeRepository licenseTypeRepository, CompanyLicenseMapper mapper) {
-        this.repository = repository;
-        this.companyRepository = companyRepository;
-        this.licenseTypeRepository = licenseTypeRepository;
-        this.mapper = mapper;
-    }
 
     @Override
     @Transactional(readOnly = true)
@@ -100,17 +95,14 @@ public class CompanyLicenseService implements CompanyLicenseUseCase {
     }
 
     private CompanyLicense getEntityById(UUID id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("No existe una licencia de empresa con id " + id));
+        return repository.getReferenceById(id);
     }
 
     private Company getCompany(UUID id) {
-        return companyRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("No existe una empresa con id " + id));
+        return companyRepository.getReferenceById(id);
     }
 
     private LicenseType getLicenseType(UUID id) {
-        return licenseTypeRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("No existe un tipo de licencia con id " + id));
+        return licenseTypeRepository.getReferenceById(id);
     }
 }

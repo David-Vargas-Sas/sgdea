@@ -10,6 +10,7 @@ import com.sgdea.multitenancy.multitenancy.role.domain.repository.RoleRepository
 import com.sgdea.multitenancy.multitenancy.user.domain.model.User;
 import com.sgdea.multitenancy.multitenancy.user.domain.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -20,18 +21,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
+@AllArgsConstructor
 public class UserService implements UserUseCase {
     private final UserRepository repository;
     private final RoleRepository roleRepository;
     private final UserMapper mapper;
     private final PasswordEncoder passwordEncoder;
-
-    public UserService(UserRepository repository, RoleRepository roleRepository, UserMapper mapper, PasswordEncoder passwordEncoder) {
-        this.repository = repository;
-        this.roleRepository = roleRepository;
-        this.mapper = mapper;
-        this.passwordEncoder = passwordEncoder;
-    }
 
     @Override
     @Transactional(readOnly = true)
@@ -106,12 +101,10 @@ public class UserService implements UserUseCase {
     }
 
     private User getEntityById(Long id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("No existe un usuario con id " + id));
+        return repository.getReferenceById(id);
     }
 
     private Role getRole(Long roleId) {
-        return roleRepository.findById(roleId)
-                .orElseThrow(() -> new EntityNotFoundException("No existe un rol con id " + roleId));
+        return roleRepository.getReferenceById(roleId);
     }
 }

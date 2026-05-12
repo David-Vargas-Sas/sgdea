@@ -10,6 +10,7 @@ import com.sgdea.multitenancy.multitenancy.company.domain.repository.CompanyRepo
 import com.sgdea.multitenancy.multitenancy.companyType.domain.model.CompanyType;
 import com.sgdea.multitenancy.multitenancy.companyType.domain.repository.CompanyTypeRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.AllArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,16 +19,12 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@AllArgsConstructor
 public class CompanyService implements CompanyUseCase {
     private final CompanyRepository repository;
     private final CompanyTypeRepository companyTypeRepository;
     private final CompanyMapper mapper;
 
-    public CompanyService(CompanyRepository repository, CompanyTypeRepository companyTypeRepository, CompanyMapper mapper) {
-        this.repository = repository;
-        this.companyTypeRepository = companyTypeRepository;
-        this.mapper = mapper;
-    }
 
     @Override
     @Transactional(readOnly = true)
@@ -95,8 +92,7 @@ public class CompanyService implements CompanyUseCase {
     }
 
     private Company getEntityById(UUID id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("No existe una empresa con id " + id));
+        return repository.getReferenceById(id);
     }
 
     private CompanyType getCompanyType(Long companyTypeId) {

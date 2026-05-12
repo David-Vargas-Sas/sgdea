@@ -5,10 +5,16 @@ spring:
   profiles:
     active: dev
 
-  # Rutas y puertos para entorno de desarrollo (el gateway enruta a los microservicios locales)
+  # Redis local (sin pool adicional; hereda config base)
+  redis:
+    host: localhost
+    port: 6379
+
   cloud:
     gateway:
+      # default-filters heredado del base (X-Gateway-Source), se puede sobreescribir aquí si es necesario
       routes:
+        # ── Administración ──────────────────────────────────────────────────
         - id: administracion
           uri: http://localhost:9090
           predicates:
@@ -16,8 +22,10 @@ spring:
           filters:
             - name: RequestRateLimiter
               args:
-                redis-rate-limiter.replenishRate: 10
-                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+
         - id: administracion-graphql
           uri: http://localhost:9090
           predicates:
@@ -25,14 +33,40 @@ spring:
           filters:
             - name: RequestRateLimiter
               args:
-                redis-rate-limiter.replenishRate: 10
-                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
 
-# Variables de servicio (útiles para clientes GraphQL u otras integraciones en dev)
+        # ── Multitenancy — Auth (rutas públicas) ────────────────────────────
+        # Más restrictivo para proteger login/refresh de fuerza bruta (rate limit por IP).
+        - id: multitenancy-auth
+          uri: http://localhost:8081
+          predicates:
+            - Path=/multitenancy/auth/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 5
+                redis-rate-limiter.burstCapacity: 10
+                redis-rate-limiter.requestedTokens: 1
+
+        # ── Multitenancy — API (rutas protegidas) ───────────────────────────
+        # Rate limit por usuario autenticado (email desde JWT).
+        - id: multitenancy
+          uri: http://localhost:8081
+          predicates:
+            - Path=/multitenancy/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+
+# URLs de servicio explícitas para dev
 ADMIN_SERVICE_URL: http://localhost:9090
 ADMIN_SERVICE_GRAPHQL_URL: http://localhost:9090/graphql
-
-# Tracing / observabilidad en dev
+MULTITENANCY_SERVICE_URL: http://localhost:8081
 ZIPKIN_URL: http://localhost:9411
 
 logging:
@@ -40,6 +74,17 @@ logging:
     root: DEBUG
     com.sgdea: DEBUG
 
+# ---------------------------------------------------------------------------
 # Notas:
-# - Este archivo está pensado para desarrollo local. En producción use `application-prod.yml` y variables/secretos
-#   gestionados por su orquestador (K8s, Docker Compose, etc.).
+# - Configuración exclusiva para desarrollo local.
+# - Los valores están hardcodeados intencionalmente para facilitar el onboarding.
+# - security.jwt.secret DEBE coincidir con el valor de multitenancy (application.yaml).
+# - En producción use application-prod.yml con variables de entorno/secretos.
+# ---------------------------------------------------------------------------
+
+# JWT unificado: mismo secreto que multitenancy para dev local
+security:
+  jwt:
+    secret: dev-secret-change-me-dev-secret-change-me
+    issuer: sgdea-multitenancy
+

@@ -12,6 +12,7 @@ import com.sgdea.multitenancy.multitenancy.companyUser.domain.repository.Company
 import com.sgdea.multitenancy.multitenancy.user.domain.model.User;
 import com.sgdea.multitenancy.multitenancy.user.domain.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -22,22 +23,12 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@AllArgsConstructor
 public class CompanyUserService implements CompanyUserUseCase {
     private final CompanyUserRepository repository;
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
     private final CompanyUserMapper mapper;
-
-    public CompanyUserService(
-            CompanyUserRepository repository,
-            CompanyRepository companyRepository,
-            UserRepository userRepository,
-            CompanyUserMapper mapper) {
-        this.repository = repository;
-        this.companyRepository = companyRepository;
-        this.userRepository = userRepository;
-        this.mapper = mapper;
-    }
 
     @Override
     @Transactional(readOnly = true)
@@ -113,18 +104,15 @@ public class CompanyUserService implements CompanyUserUseCase {
     }
 
     private CompanyUser getEntityById(Long id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("No existe una relacion empresa usuario con id " + id));
+        return repository.getReferenceById(id);
     }
 
     private Company getCompany(UUID companyId) {
-        return companyRepository.findById(companyId)
-                .orElseThrow(() -> new EntityNotFoundException("No existe una empresa con id " + companyId));
+        return companyRepository.getReferenceById(companyId);
     }
 
     private User getUser(Long userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("No existe un usuario con id " + userId));
+        return userRepository.getReferenceById(userId);
     }
 
 }

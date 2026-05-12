@@ -1,24 +1,53 @@
 server:
   port: ${SERVER_PORT:9090}
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:200}
+      min-spare: ${TOMCAT_MIN_SPARE_THREADS:20}
+    connection-timeout: 20000
+    accept-count: 100
 
 spring:
   profiles:
     active: prod
 
   datasource:
-    # En producción las variables deben proporcionarse sin valor por defecto
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      # ── Pool FIJO — tamaño calculado con la fórmula de PostgreSQL ──────────
+      #
+      #   pool_size ≈ (núcleos_CPU × 2) + effective_spindle_drives
+      #   SSD/NVMe → spindle = 1
+      #
+      #   Ejemplos:
+      #     4 vCPUs + SSD  →  (4×2)+1  = 9  (óptimo DB-server)
+      #     8 vCPUs + SSD  →  (8×2)+1  = 17
+      #
+      #   Con 200 hilos Tomcat, recomendamos HIKARI_POOL_SIZE = 25..50.
+      #   Pool fijo (min = max): elimina overhead de crecimiento/contracción.
+      #
+      maximum-pool-size: ${HIKARI_POOL_SIZE:25}
+      minimum-idle: ${HIKARI_POOL_SIZE:25}
+
+      connection-timeout: 20000                     # 20 s
+      validation-timeout: 3000                      # 3 s (< connection-timeout)
+      max-lifetime: 1800000                         # 30 min
+      idle-timeout: 600000                          # 10 min
+      keepalive-time: 60000                         # Ping cada 60 s (imprescindible en cloud)
+      leak-detection-threshold: ${HIKARI_LEAK_THRESHOLD:60000}  # 60 s en prod
+      pool-name: AdministracionHikariPool
 
   jpa:
+    open-in-view: false
     hibernate:
-      # En producción conviene validar el esquema y no modificarlo automáticamente
-      ddl-auto: validate
+      ddl-auto: validate                            # Validar esquema, nunca modificar en prod
     show-sql: false
     properties:
       hibernate:
         format_sql: false
+        generate_statistics: false
 
 management:
   endpoints:
@@ -27,14 +56,22 @@ management:
         include: health,info,prometheus
   endpoint:
     health:
-      show-details: never
+      show-details: when-authorized
 
 logging:
   level:
     root: INFO
     com.sgdea: INFO
+    com.zaxxer.hikari: WARN
 
-# Notas:
-# - Ponga las variables de conexión (SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME,
-#   SPRING_DATASOURCE_PASSWORD) en el entorno o en el orquestador (K8s secrets, docker-compose env, etc.)
-# - Ajuste `management.endpoints.web.exposure.include` según lo que quiera exponer en producción.
+# ─────────────────────────────────────────────────────────────────────────────
+# Variables de entorno requeridas en producción:
+#   SPRING_DATASOURCE_URL               URL JDBC de PostgreSQL (OBLIGATORIO)
+#   SPRING_DATASOURCE_USERNAME          Usuario de BD (OBLIGATORIO)
+#   SPRING_DATASOURCE_PASSWORD          Contraseña de BD (OBLIGATORIO)
+#   HIKARI_POOL_SIZE                    Conexiones BD (default: 25; fórmula: CPUs×2+1)
+#   HIKARI_LEAK_THRESHOLD               ms antes de WARNING por fuga (default: 60000)
+#   TOMCAT_MAX_THREADS                  Hilos Tomcat (default: 200)
+#   TOMCAT_MIN_SPARE_THREADS            Hilos mínimos en espera (default: 20)
+#   SERVER_PORT                         Puerto del servicio (default: 9090)
+# ─────────────────────────────────────────────────────────────────────────────

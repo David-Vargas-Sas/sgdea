@@ -8,6 +8,7 @@ import com.sgdea.multitenancy.multitenancy.companyType.application.usecase.Compa
 import com.sgdea.multitenancy.multitenancy.companyType.domain.model.CompanyType;
 import com.sgdea.multitenancy.multitenancy.companyType.domain.repository.CompanyTypeRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -18,14 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
+@AllArgsConstructor
 public class CompanyTypeService implements CompanyTypeUseCase {
     private final CompanyTypeRepository repository;
     private final CompanyTypeMapper mapper;
-
-    public CompanyTypeService(CompanyTypeRepository repository, CompanyTypeMapper mapper) {
-        this.repository = repository;
-        this.mapper = mapper;
-    }
 
     @Override
     @Transactional(readOnly = true)
@@ -93,7 +90,6 @@ public class CompanyTypeService implements CompanyTypeUseCase {
     }
 
     private CompanyType getEntityById(Long id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("No existe un tipo de empresa con id " + id));
+        return repository.getReferenceById(id);
     }
 }

@@ -18,10 +18,12 @@ import com.sgdea.multitenancy.multitenancy.companyUser.application.dto.CompanyUs
 import com.sgdea.multitenancy.multitenancy.companyUser.application.service.CompanyUserService;
 import com.sgdea.multitenancy.multitenancy.user.application.dto.UserResponseDto;
 import com.sgdea.multitenancy.multitenancy.user.application.service.UserService;
+import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@AllArgsConstructor
 public class CompanyProvisioningService implements CompanyProvisioningUseCase {
     private final CompanyService companyService;
     private final UserService userService;
@@ -29,18 +31,6 @@ public class CompanyProvisioningService implements CompanyProvisioningUseCase {
     private final CompanyLicenseService companyLicenseService;
     private final CompanyDatabaseConnectionService companyDatabaseConnectionService;
 
-    public CompanyProvisioningService(
-            CompanyService companyService,
-            UserService userService,
-            CompanyUserService companyUserService,
-            CompanyLicenseService companyLicenseService,
-            CompanyDatabaseConnectionService companyDatabaseConnectionService) {
-        this.companyService = companyService;
-        this.userService = userService;
-        this.companyUserService = companyUserService;
-        this.companyLicenseService = companyLicenseService;
-        this.companyDatabaseConnectionService = companyDatabaseConnectionService;
-    }
 
     @Override
     @Transactional

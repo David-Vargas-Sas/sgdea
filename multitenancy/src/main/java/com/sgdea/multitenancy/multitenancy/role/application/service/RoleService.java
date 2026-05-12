@@ -8,6 +8,7 @@ import com.sgdea.multitenancy.multitenancy.role.application.usecase.RoleUseCase;
 import com.sgdea.multitenancy.multitenancy.role.domain.model.Role;
 import com.sgdea.multitenancy.multitenancy.role.domain.repository.RoleRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -17,14 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
+@AllArgsConstructor
 public class RoleService implements RoleUseCase {
     private final RoleRepository repository;
     private final RoleMapper mapper;
 
-    public RoleService(RoleRepository repository, RoleMapper mapper) {
-        this.repository = repository;
-        this.mapper = mapper;
-    }
 
     @Override
     @Transactional(readOnly = true)
@@ -96,7 +94,6 @@ public class RoleService implements RoleUseCase {
     }
 
     private Role getEntityById(Long id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("No existe un rol con id " + id));
+        return repository.getReferenceById(id);
     }
 }

@@ -1,0 +1,130 @@
+package com.sgdea.multitenancy.multitenancy.application.companyUser.service;
+
+import com.sgdea.multitenancy.multitenancy.application.companyUser.dto.CompanyUserCreateDto;
+import com.sgdea.multitenancy.multitenancy.application.companyUser.dto.CompanyUserResponseDto;
+import com.sgdea.multitenancy.multitenancy.application.companyUser.dto.CompanyUserUpdateDto;
+import com.sgdea.multitenancy.multitenancy.application.companyUser.mapper.CompanyUserMapper;
+import com.sgdea.multitenancy.multitenancy.application.companyUser.usecase.CompanyUserUseCase;
+import com.sgdea.multitenancy.multitenancy.domain.company.model.Company;
+import com.sgdea.multitenancy.multitenancy.domain.company.repository.CompanyRepository;
+import com.sgdea.multitenancy.multitenancy.domain.companyUser.model.CompanyUser;
+import com.sgdea.multitenancy.multitenancy.domain.companyUser.repository.CompanyUserRepository;
+import com.sgdea.multitenancy.multitenancy.domain.user.model.User;
+import com.sgdea.multitenancy.multitenancy.domain.user.repository.UserRepository;
+import jakarta.persistence.EntityNotFoundException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
+
+@Service
+public class CompanyUserService implements CompanyUserUseCase {
+    private final CompanyUserRepository repository;
+    private final CompanyRepository companyRepository;
+    private final UserRepository userRepository;
+    private final CompanyUserMapper mapper;
+
+    public CompanyUserService(
+            CompanyUserRepository repository,
+            CompanyRepository companyRepository,
+            UserRepository userRepository,
+            CompanyUserMapper mapper) {
+        this.repository = repository;
+        this.companyRepository = companyRepository;
+        this.userRepository = userRepository;
+        this.mapper = mapper;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CompanyUserResponseDto> findAll() {
+        return repository.findAll().stream().map(mapper::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CompanyUserResponseDto findById(Long id) {
+        return mapper.toResponse(getEntityById(id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CompanyUserResponseDto> findByCompanyId(UUID companyId) {
+        return repository.findByCompanyId(companyId).stream().map(mapper::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CompanyUserResponseDto> findByUserId(Long userId) {
+        return repository.findByUserId(userId).stream().map(mapper::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<CompanyUserResponseDto> findAllPaginated(int page, int size, String sortBy, String sortDirection) {
+        Sort.Direction direction = "desc".equalsIgnoreCase(sortDirection) ? Sort.Direction.DESC : Sort.Direction.ASC;
+        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponse);
+    }
+
+    @Override
+    @Transactional
+    public CompanyUserResponseDto create(CompanyUserCreateDto dto) {
+        if (repository.existsByCompanyIdAndUserId(dto.getCompanyId(), dto.getUserId())) {
+            throw new IllegalArgumentException("El usuario ya esta asociado a esta empresa");
+        }
+        Company company = getCompany(dto.getCompanyId());
+        User user = getUser(dto.getUserId());
+        return mapper.toResponse(repository.save(mapper.toEntity(dto, company, user)));
+    }
+
+    @Override
+    @Transactional
+    public CompanyUserResponseDto update(Long id, CompanyUserUpdateDto dto) {
+        CompanyUser companyUser = getEntityById(id);
+        UUID companyId = dto.getCompanyId() == null ? companyUser.getCompany().getId() : dto.getCompanyId();
+        Long userId = dto.getUserId() == null ? companyUser.getUser().getId() : dto.getUserId();
+        if (repository.existsByCompanyIdAndUserIdAndIdNot(companyId, userId, id)) {
+            throw new IllegalArgumentException("El usuario ya esta asociado a esta empresa");
+        }
+        Company company = dto.getCompanyId() == null ? null : getCompany(dto.getCompanyId());
+        User user = dto.getUserId() == null ? null : getUser(dto.getUserId());
+        mapper.updateEntity(companyUser, dto, company, user);
+        return mapper.toResponse(repository.save(companyUser));
+    }
+
+    @Override
+    @Transactional
+    public Boolean delete(Long id) {
+        repository.delete(getEntityById(id));
+        return true;
+    }
+
+    @Override
+    @Transactional
+    public String toggleActive(Long id) {
+        CompanyUser companyUser = getEntityById(id);
+        companyUser.setActive(!Boolean.TRUE.equals(companyUser.getActive()));
+        repository.save(companyUser);
+        return companyUser.getActive() ? "Usuario de empresa activado correctamente" : "Usuario de empresa desactivado correctamente";
+    }
+
+    private CompanyUser getEntityById(Long id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("No existe una relacion empresa usuario con id " + id));
+    }
+
+    private Company getCompany(UUID companyId) {
+        return companyRepository.findById(companyId)
+                .orElseThrow(() -> new EntityNotFoundException("No existe una empresa con id " + companyId));
+    }
+
+    private User getUser(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("No existe un usuario con id " + userId));
+    }
+
+}

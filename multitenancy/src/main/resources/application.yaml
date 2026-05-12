@@ -1,0 +1,37 @@
+# Configuración de la aplicación
+server:
+  port: ${SERVER_PORT:8081}
+# Configuración de CORS para permitir solicitudes desde el frontend
+spring:
+  application:
+    name: multitenancy
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  # Configuración de la base de datos
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/SGDEA_SUPERADMIN}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:Tecs2026*}
+  # Configuración de JPA/Hibernate
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+# Configuración de logging
+logging:
+  level:
+    root: INFO
+    com.sgdea: DEBUG
+
+# Configuración de seguridad
+security:
+  enabled: ${SECURITY_ENABLED:false} # Cambiar a true para habilitar seguridad
+  jwt:
+    issuer: ${SECURITY_JWT_ISSUER:sgdea-multitenancy} # Cambiar a un valor único en producción
+    secret: ${SECURITY_JWT_SECRET:dev-secret-change-me-dev-secret-change-me} # Cambiar a un valor seguro en producción
+    access-token-minutes: ${SECURITY_JWT_ACCESS_TOKEN_MINUTES:30} # Cambiar a un valor adecuado para producción
+    refresh-token-hours: ${SECURITY_JWT_REFRESH_TOKEN_HOURS:8} # Cambiar a un valor adecuado para producción

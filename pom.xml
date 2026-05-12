@@ -23,6 +23,7 @@
     <modules>
         <module>administracion</module>
         <module>apiGateway</module>
+        <module>multitenancy</module>
     </modules>
 
     <properties>

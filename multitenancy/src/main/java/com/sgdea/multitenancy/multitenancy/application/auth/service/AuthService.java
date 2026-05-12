@@ -1,0 +1,203 @@
+package com.sgdea.multitenancy.multitenancy.application.auth.service;
+
+import com.sgdea.multitenancy.multitenancy.application.auth.dto.AuthLoginRequestDto;
+import com.sgdea.multitenancy.multitenancy.application.auth.dto.AuthLoginResponseDto;
+import com.sgdea.multitenancy.multitenancy.application.auth.dto.AuthLogoutRequestDto;
+import com.sgdea.multitenancy.multitenancy.application.auth.dto.AuthRefreshRequestDto;
+import com.sgdea.multitenancy.multitenancy.application.auth.usecase.AuthUseCase;
+import com.sgdea.multitenancy.multitenancy.domain.authSession.model.AuthSession;
+import com.sgdea.multitenancy.multitenancy.domain.authSession.repository.AuthSessionRepository;
+import com.sgdea.multitenancy.multitenancy.domain.company.model.Company;
+import com.sgdea.multitenancy.multitenancy.domain.companyDatabaseConnection.model.CompanyDatabaseConnection;
+import com.sgdea.multitenancy.multitenancy.domain.companyDatabaseConnection.repository.CompanyDatabaseConnectionRepository;
+import com.sgdea.multitenancy.multitenancy.domain.companyUser.model.CompanyUser;
+import com.sgdea.multitenancy.multitenancy.domain.companyUser.repository.CompanyUserRepository;
+import com.sgdea.multitenancy.multitenancy.domain.user.model.User;
+import com.sgdea.multitenancy.multitenancy.domain.user.repository.UserRepository;
+import com.sgdea.multitenancy.multitenancy.infraestructure.security.JwtTokenService;
+import jakarta.persistence.EntityNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+@Service
+public class AuthService implements AuthUseCase {
+    private final UserRepository userRepository;
+    private final CompanyUserRepository companyUserRepository;
+    private final CompanyDatabaseConnectionRepository connectionRepository;
+    private final AuthSessionRepository authSessionRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtTokenService jwtTokenService;
+    private final int accessTokenMinutes;
+    private final int refreshTokenHours;
+
+    public AuthService(
+            UserRepository userRepository,
+            CompanyUserRepository companyUserRepository,
+            CompanyDatabaseConnectionRepository connectionRepository,
+            AuthSessionRepository authSessionRepository,
+            PasswordEncoder passwordEncoder,
+            JwtTokenService jwtTokenService,
+            @Value("${security.jwt.access-token-minutes:30}") int accessTokenMinutes,
+            @Value("${security.jwt.refresh-token-hours:8}") int refreshTokenHours) {
+        this.userRepository = userRepository;
+        this.companyUserRepository = companyUserRepository;
+        this.connectionRepository = connectionRepository;
+        this.authSessionRepository = authSessionRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtTokenService = jwtTokenService;
+        this.accessTokenMinutes = accessTokenMinutes;
+        this.refreshTokenHours = refreshTokenHours;
+    }
+
+    @Override
+    @Transactional
+    public AuthLoginResponseDto login(AuthLoginRequestDto dto) {
+        User user = userRepository.findByEmailIgnoreCase(dto.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("Credenciales invalidas"));
+
+        if (!passwordEncoder.matches(dto.getPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("Credenciales invalidas");
+        }
+        if (!Boolean.TRUE.equals(user.getActive())) {
+            throw new IllegalArgumentException("El usuario esta inactivo");
+        }
+
+        CompanyUser companyUser = getActiveCompanyUser(user.getId());
+        Company company = companyUser.getCompany();
+        if (!Boolean.TRUE.equals(company.getActive())) {
+            throw new IllegalArgumentException("La empresa asociada esta inactiva");
+        }
+
+        CompanyDatabaseConnection connection = getDefaultActiveConnection(company.getId());
+        closeActiveSessions(user.getId());
+        AuthSession session = createSession(user, company, connection);
+        return buildLoginResponse(session);
+    }
+
+    @Override
+    @Transactional
+    public AuthLoginResponseDto refresh(AuthRefreshRequestDto dto) {
+        AuthSession session = authSessionRepository.findByRefreshToken(dto.getRefreshToken())
+                .orElseThrow(() -> new IllegalArgumentException("Refresh token invalido"));
+
+        if (!isRefreshSessionValid(session)) {
+            throw new IllegalArgumentException("Refresh token invalido o expirado");
+        }
+
+        LocalDateTime accessExpiresAt = LocalDateTime.now().plusMinutes(accessTokenMinutes);
+        session.setToken(jwtTokenService.generateToken(session.getUser(), session.getCompany(), session.getConnection(), accessExpiresAt));
+        session.setExpiresAt(accessExpiresAt);
+        return buildLoginResponse(authSessionRepository.save(session));
+    }
+
+    @Override
+    @Transactional
+    public Boolean logout(AuthLogoutRequestDto dto) {
+        if (dto == null || dto.getToken() == null || dto.getToken().isBlank()) {
+            throw new IllegalArgumentException("El token es obligatorio");
+        }
+        return logout(dto.getToken());
+    }
+
+    @Override
+    @Transactional
+    public Boolean logout(String token) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("El token es obligatorio");
+        }
+
+        AuthSession session = authSessionRepository.findByToken(token)
+                .orElseThrow(() -> new EntityNotFoundException("No existe una sesion activa con el token enviado"));
+
+        if (!Boolean.TRUE.equals(session.getActive())) {
+            return true;
+        }
+
+        session.setActive(false);
+        session.setLoggedOutAt(LocalDateTime.now());
+        authSessionRepository.save(session);
+        return true;
+    }
+
+    private void closeActiveSessions(Long userId) {
+        authSessionRepository.findByUserIdAndActiveTrue(userId).forEach(session -> {
+            session.setActive(false);
+            session.setLoggedOutAt(LocalDateTime.now());
+            authSessionRepository.save(session);
+        });
+    }
+
+    private CompanyUser getActiveCompanyUser(Long userId) {
+        return companyUserRepository.findByUserId(userId)
+                .stream()
+                .filter(companyUser -> Boolean.TRUE.equals(companyUser.getActive()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("El usuario no tiene una empresa activa asociada"));
+    }
+
+    private CompanyDatabaseConnection getDefaultActiveConnection(UUID companyId) {
+        return connectionRepository.findByCompanyIdAndDefaultConnectionTrue(companyId)
+                .stream()
+                .filter(connection -> Boolean.TRUE.equals(connection.getActive()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("La empresa no tiene una conexion de base de datos activa por defecto"));
+    }
+
+    private AuthSession createSession(User user, Company company, CompanyDatabaseConnection connection) {
+        AuthSession session = new AuthSession();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(accessTokenMinutes);
+        LocalDateTime refreshExpiresAt = LocalDateTime.now().plusHours(refreshTokenHours);
+        session.setToken(jwtTokenService.generateToken(user, company, connection, expiresAt));
+        session.setRefreshToken(UUID.randomUUID().toString());
+        session.setUser(user);
+        session.setCompany(company);
+        session.setConnection(connection);
+        session.setExpiresAt(expiresAt);
+        session.setRefreshExpiresAt(refreshExpiresAt);
+        return authSessionRepository.save(session);
+    }
+
+    private boolean isRefreshSessionValid(AuthSession session) {
+        return Boolean.TRUE.equals(session.getActive())
+                && session.getLoggedOutAt() == null
+                && session.getRefreshExpiresAt().isAfter(LocalDateTime.now())
+                && Boolean.TRUE.equals(session.getUser().getActive())
+                && Boolean.TRUE.equals(session.getCompany().getActive())
+                && Boolean.TRUE.equals(session.getConnection().getActive());
+    }
+
+    private AuthLoginResponseDto buildLoginResponse(AuthSession session) {
+        User user = session.getUser();
+        Company company = session.getCompany();
+        CompanyDatabaseConnection connection = session.getConnection();
+
+        return AuthLoginResponseDto.builder()
+                .token(session.getToken())
+                .refreshToken(session.getRefreshToken())
+                .expiresAt(session.getExpiresAt())
+                .refreshExpiresAt(session.getRefreshExpiresAt())
+                .userId(user.getId())
+                .email(user.getEmail())
+                .documentNumber(user.getDocumentNumber())
+                .firstName(user.getFirstName())
+                .secondName(user.getSecondName())
+                .firstLastName(user.getFirstLastName())
+                .secondLastName(user.getSecondLastName())
+                .roleId(user.getRole().getId())
+                .roleCode(user.getRole().getCode())
+                .roleName(user.getRole().getName())
+                .companyId(company.getId())
+                .companyCode(company.getCode())
+                .companyName(company.getName())
+                .connectionId(connection.getId())
+                .connectionName(connection.getConnectionName())
+                .provider(connection.getProvider())
+                .databaseName(connection.getDatabaseName())
+                .build();
+    }
+}

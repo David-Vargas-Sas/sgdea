@@ -25,6 +25,6 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
             throws IOException {
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        objectMapper.writeValue(response.getWriter(), ApiResponseDto.error("Usuario no logueado", null));
+        objectMapper.writeValue(response.getWriter(), ApiResponseDto.error("Usuario no autenticado", null));
     }
 }

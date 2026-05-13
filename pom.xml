@@ -80,6 +80,13 @@
                 <artifactId>spring-boot-starter-actuator</artifactId>
                 <version>${project.parent.version}</version>
             </dependency>
+            <dependency>
+                <!-- Registro Prometheus para Micrometer — expone /actuator/prometheus -->
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-registry-prometheus</artifactId>
+                <!-- versión gestionada por spring-boot-starter-parent BOM -->
+                <scope>runtime</scope>
+            </dependency>
 
             <dependency>
                 <groupId>com.microsoft.sqlserver</groupId>

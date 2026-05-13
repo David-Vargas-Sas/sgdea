@@ -30,4 +30,8 @@ public class AuthLoginResponseDto {
     private UUID companyId;
     private String companyCode;
     private String companyName;
+    private UUID connectionId;
+    private String connectionName;
+    private String provider;
+    private String databaseName;
 }

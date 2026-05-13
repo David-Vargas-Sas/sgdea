@@ -29,13 +29,13 @@ public class CompanyService implements CompanyUseCase {
     @Override
     @Transactional(readOnly = true)
     public List<CompanyResponseDto> findAll() {
-        return repository.findAll().stream().map(mapper::toResponse).toList();
+        return repository.findAll().stream().map(mapper::toResponseDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public CompanyResponseDto findById(UUID id) {
-        return mapper.toResponse(getEntityById(id));
+        return mapper.toResponseDTO(getEntityById(id));
     }
 
     @Override
@@ -43,14 +43,14 @@ public class CompanyService implements CompanyUseCase {
     public CompanyResponseDto findByCode(String code) {
         Company company = repository.findByCodeIgnoreCase(code)
                 .orElseThrow(() -> new EntityNotFoundException("No existe una empresa con codigo " + code));
-        return mapper.toResponse(company);
+        return mapper.toResponseDTO(company);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<CompanyResponseDto> findAllPaginated(int page, int size, String sortBy, String sortDirection) {
         Sort.Direction direction = "desc".equalsIgnoreCase(sortDirection) ? Sort.Direction.DESC : Sort.Direction.ASC;
-        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponse);
+        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponseDTO);
     }
 
     @Override
@@ -60,7 +60,9 @@ public class CompanyService implements CompanyUseCase {
             throw new IllegalArgumentException("Ya existe una empresa con codigo " + dto.getCode());
         }
         CompanyType companyType = getCompanyType(dto.getCompanyTypeId());
-        return mapper.toResponse(repository.save(mapper.toEntity(dto, companyType)));
+        Company company = mapper.toEntity(dto);
+        company.setCompanyType(companyType);
+        return mapper.toResponseDTO(repository.save(company));
     }
 
     @Override
@@ -71,8 +73,11 @@ public class CompanyService implements CompanyUseCase {
             throw new IllegalArgumentException("Ya existe una empresa con codigo " + dto.getCode());
         }
         CompanyType companyType = getCompanyType(dto.getCompanyTypeId());
-        mapper.updateEntity(company, dto, companyType);
-        return mapper.toResponse(repository.save(company));
+        mapper.updateEntityFromDTO(dto, company);
+        if (dto.getCompanyTypeId() != null) {
+            company.setCompanyType(companyType);
+        }
+        return mapper.toResponseDTO(repository.save(company));
     }
 
     @Override

@@ -29,14 +29,14 @@ public class CompanyTypeService implements CompanyTypeUseCase {
     public List<CompanyTypeResponseDto> findAll() {
         return repository.findAll()
                 .stream()
-                .map(mapper::toResponse)
+                .map(mapper::toResponseDTO)
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public CompanyTypeResponseDto findById(Long id) {
-        return mapper.toResponse(getEntityById(id));
+        return mapper.toResponseDTO(getEntityById(id));
     }
 
     @Override
@@ -44,7 +44,7 @@ public class CompanyTypeService implements CompanyTypeUseCase {
     public CompanyTypeResponseDto findByName(String name) {
         CompanyType companyType = repository.findByNameIgnoreCase(name)
                 .orElseThrow(() -> new EntityNotFoundException("No existe un tipo de empresa con nombre " + name));
-        return mapper.toResponse(companyType);
+        return mapper.toResponseDTO(companyType);
     }
 
     @Override
@@ -54,7 +54,7 @@ public class CompanyTypeService implements CompanyTypeUseCase {
                 ? Sort.Direction.DESC
                 : Sort.Direction.ASC;
         Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
-        return repository.findAll(pageable).map(mapper::toResponse);
+        return repository.findAll(pageable).map(mapper::toResponseDTO);
     }
 
     @Override
@@ -65,7 +65,7 @@ public class CompanyTypeService implements CompanyTypeUseCase {
         }
 
         CompanyType companyType = mapper.toEntity(dto);
-        return mapper.toResponse(repository.save(companyType));
+        return mapper.toResponseDTO(repository.save(companyType));
     }
 
     @Override
@@ -77,8 +77,8 @@ public class CompanyTypeService implements CompanyTypeUseCase {
             throw new IllegalArgumentException("Ya existe un tipo de empresa con nombre " + dto.getName());
         }
 
-        mapper.updateEntity(companyType, dto);
-        return mapper.toResponse(repository.save(companyType));
+        mapper.updateEntityFromDTO(dto, companyType);
+        return mapper.toResponseDTO(repository.save(companyType));
     }
 
     @Override

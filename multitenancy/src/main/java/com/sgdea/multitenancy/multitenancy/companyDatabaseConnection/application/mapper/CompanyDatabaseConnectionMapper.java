@@ -3,71 +3,50 @@ package com.sgdea.multitenancy.multitenancy.companyDatabaseConnection.applicatio
 import com.sgdea.multitenancy.multitenancy.companyDatabaseConnection.application.dto.CompanyDatabaseConnectionCreateDto;
 import com.sgdea.multitenancy.multitenancy.companyDatabaseConnection.application.dto.CompanyDatabaseConnectionResponseDto;
 import com.sgdea.multitenancy.multitenancy.companyDatabaseConnection.application.dto.CompanyDatabaseConnectionUpdateDto;
-import com.sgdea.multitenancy.multitenancy.company.domain.model.Company;
 import com.sgdea.multitenancy.multitenancy.companyDatabaseConnection.domain.model.CompanyDatabaseConnection;
-import org.springframework.stereotype.Component;
+import org.mapstruct.BeanMapping;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
+import org.mapstruct.Named;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
-@Component
-public class CompanyDatabaseConnectionMapper {
-    public CompanyDatabaseConnection toEntity(CompanyDatabaseConnectionCreateDto dto, Company company) {
-        CompanyDatabaseConnection connection = new CompanyDatabaseConnection();
-        connection.setCompany(company);
-        connection.setConnectionName(trim(dto.getConnectionName()));
-        connection.setProvider(normalize(dto.getProvider()));
-        connection.setServer(trim(dto.getServer()));
-        connection.setDatabaseName(trim(dto.getDatabaseName()));
-        connection.setPort(dto.getPort());
-        connection.setDatabaseUser(trim(dto.getDatabaseUser()));
-        connection.setEncryptedPassword(trim(dto.getEncryptedPassword()));
-        connection.setEncryptedConnectionString(trim(dto.getEncryptedConnectionString()));
-        connection.setDefaultConnection(Boolean.TRUE.equals(dto.getDefaultConnection()));
-        connection.setCreatedBy(trim(dto.getCreatedBy()));
-        return connection;
-    }
+@Mapper(componentModel = "spring")
+public interface CompanyDatabaseConnectionMapper {
 
-    public void updateEntity(CompanyDatabaseConnection connection, CompanyDatabaseConnectionUpdateDto dto, Company company) {
-        if (company != null) connection.setCompany(company);
-        if (dto.getConnectionName() != null) connection.setConnectionName(trim(dto.getConnectionName()));
-        if (dto.getProvider() != null) connection.setProvider(normalize(dto.getProvider()));
-        if (dto.getServer() != null) connection.setServer(trim(dto.getServer()));
-        if (dto.getDatabaseName() != null) connection.setDatabaseName(trim(dto.getDatabaseName()));
-        if (dto.getPort() != null) connection.setPort(dto.getPort());
-        if (dto.getDatabaseUser() != null) connection.setDatabaseUser(trim(dto.getDatabaseUser()));
-        if (dto.getEncryptedPassword() != null) connection.setEncryptedPassword(trim(dto.getEncryptedPassword()));
-        if (dto.getEncryptedConnectionString() != null) connection.setEncryptedConnectionString(trim(dto.getEncryptedConnectionString()));
-        if (dto.getDefaultConnection() != null) connection.setDefaultConnection(dto.getDefaultConnection());
-        if (dto.getActive() != null) connection.setActive(dto.getActive());
-        if (dto.getUpdatedBy() != null) connection.setUpdatedBy(trim(dto.getUpdatedBy()));
-    }
+    // ENTITY -> RESPONSE
+    @Mapping(target = "companyId", source = "company.id")
+    @Mapping(target = "companyName", source = "company.name")
+    CompanyDatabaseConnectionResponseDto toResponseDTO(CompanyDatabaseConnection entity);
 
-    public CompanyDatabaseConnectionResponseDto toResponse(CompanyDatabaseConnection connection) {
-        CompanyDatabaseConnectionResponseDto dto = new CompanyDatabaseConnectionResponseDto();
-        dto.setId(connection.getId());
-        dto.setCompanyId(connection.getCompany().getId());
-        dto.setCompanyName(connection.getCompany().getName());
-        dto.setConnectionName(connection.getConnectionName());
-        dto.setProvider(connection.getProvider());
-        dto.setServer(connection.getServer());
-        dto.setDatabaseName(connection.getDatabaseName());
-        dto.setPort(connection.getPort());
-        dto.setDatabaseUser(connection.getDatabaseUser());
-        dto.setEncryptedPassword(connection.getEncryptedPassword());
-        dto.setEncryptedConnectionString(connection.getEncryptedConnectionString());
-        dto.setDefaultConnection(connection.getDefaultConnection());
-        dto.setActive(connection.getActive());
-        dto.setCreatedAt(connection.getCreatedAt());
-        dto.setCreatedBy(connection.getCreatedBy());
-        dto.setUpdatedAt(connection.getUpdatedAt());
-        dto.setUpdatedBy(connection.getUpdatedBy());
-        return dto;
-    }
+    // CREATE DTO -> ENTITY
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "company", ignore = true)
+    @Mapping(target = "active", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "updatedBy", ignore = true)
+    @Mapping(target = "provider", source = "provider", qualifiedByName = "upper")
+    @Mapping(target = "defaultConnection", expression = "java(Boolean.TRUE.equals(dto.getDefaultConnection()))")
+    CompanyDatabaseConnection toEntity(CompanyDatabaseConnectionCreateDto dto);
 
-    private String normalize(String value) {
+    // UPDATE DTO -> ENTITY (merge)
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "company", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "provider", source = "provider", qualifiedByName = "upper")
+    void updateEntityFromDTO(CompanyDatabaseConnectionUpdateDto dto, @MappingTarget CompanyDatabaseConnection entity);
+
+    @Named("upper")
+    default String upper(String value) {
         String trimmed = trim(value);
         return trimmed == null ? null : trimmed.toUpperCase();
     }
 
-    private String trim(String value) {
+    default String trim(String value) {
         return value == null ? null : value.trim();
     }
 }

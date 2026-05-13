@@ -4,50 +4,38 @@ import com.sgdea.multitenancy.multitenancy.licenseType.application.dto.LicenseTy
 import com.sgdea.multitenancy.multitenancy.licenseType.application.dto.LicenseTypeResponseDto;
 import com.sgdea.multitenancy.multitenancy.licenseType.application.dto.LicenseTypeUpdateDto;
 import com.sgdea.multitenancy.multitenancy.licenseType.domain.model.LicenseType;
-import org.springframework.stereotype.Component;
+import org.mapstruct.BeanMapping;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
+import org.mapstruct.Named;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
-@Component
-public class LicenseTypeMapper {
+@Mapper(componentModel = "spring")
+public interface LicenseTypeMapper {
 
-    public LicenseType toEntity(LicenseTypeCreateDto dto) {
-        LicenseType licenseType = new LicenseType();
-        licenseType.setCode(normalize(dto.getCode()));
-        licenseType.setName(trim(dto.getName()));
-        licenseType.setDescription(trim(dto.getDescription()));
-        return licenseType;
-    }
+    // ENTITY -> RESPONSE
+    LicenseTypeResponseDto toResponseDTO(LicenseType entity);
 
-    public void updateEntity(LicenseType licenseType, LicenseTypeUpdateDto dto) {
-        if (dto.getCode() != null) {
-            licenseType.setCode(normalize(dto.getCode()));
-        }
-        if (dto.getName() != null) {
-            licenseType.setName(trim(dto.getName()));
-        }
-        if (dto.getDescription() != null) {
-            licenseType.setDescription(trim(dto.getDescription()));
-        }
-        if (dto.getActive() != null) {
-            licenseType.setActive(dto.getActive());
-        }
-    }
+    // CREATE DTO -> ENTITY
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "active", ignore = true)
+    @Mapping(target = "code", source = "code", qualifiedByName = "upper")
+    LicenseType toEntity(LicenseTypeCreateDto dto);
 
-    public LicenseTypeResponseDto toResponse(LicenseType licenseType) {
-        LicenseTypeResponseDto dto = new LicenseTypeResponseDto();
-        dto.setId(licenseType.getId());
-        dto.setCode(licenseType.getCode());
-        dto.setName(licenseType.getName());
-        dto.setDescription(licenseType.getDescription());
-        dto.setActive(licenseType.getActive());
-        return dto;
-    }
+    // UPDATE DTO -> ENTITY (merge)
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "code", source = "code", qualifiedByName = "upper")
+    void updateEntityFromDTO(LicenseTypeUpdateDto dto, @MappingTarget LicenseType entity);
 
-    private String normalize(String value) {
+    @Named("upper")
+    default String upper(String value) {
         String trimmed = trim(value);
         return trimmed == null ? null : trimmed.toUpperCase();
     }
 
-    private String trim(String value) {
+    default String trim(String value) {
         return value == null ? null : value.trim();
     }
 }

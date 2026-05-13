@@ -31,14 +31,14 @@ public class LicenseTypeService implements LicenseTypeUseCase {
     public List<LicenseTypeResponseDto> findAll() {
         return repository.findAll()
                 .stream()
-                .map(mapper::toResponse)
+                .map(mapper::toResponseDTO)
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public LicenseTypeResponseDto findById(UUID id) {
-        return mapper.toResponse(getEntityById(id));
+        return mapper.toResponseDTO(getEntityById(id));
     }
 
     @Override
@@ -46,7 +46,7 @@ public class LicenseTypeService implements LicenseTypeUseCase {
     public LicenseTypeResponseDto findByCode(String code) {
         LicenseType licenseType = repository.findByCodeIgnoreCase(code)
                 .orElseThrow(() -> new EntityNotFoundException("No existe un tipo de licencia con codigo " + code));
-        return mapper.toResponse(licenseType);
+        return mapper.toResponseDTO(licenseType);
     }
 
     @Override
@@ -56,7 +56,7 @@ public class LicenseTypeService implements LicenseTypeUseCase {
                 ? Sort.Direction.DESC
                 : Sort.Direction.ASC;
         Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
-        return repository.findAll(pageable).map(mapper::toResponse);
+        return repository.findAll(pageable).map(mapper::toResponseDTO);
     }
 
     @Override
@@ -67,7 +67,7 @@ public class LicenseTypeService implements LicenseTypeUseCase {
         }
 
         LicenseType licenseType = mapper.toEntity(dto);
-        return mapper.toResponse(repository.save(licenseType));
+        return mapper.toResponseDTO(repository.save(licenseType));
     }
 
     @Override
@@ -79,8 +79,8 @@ public class LicenseTypeService implements LicenseTypeUseCase {
             throw new IllegalArgumentException("Ya existe un tipo de licencia con codigo " + dto.getCode());
         }
 
-        mapper.updateEntity(licenseType, dto);
-        return mapper.toResponse(repository.save(licenseType));
+        mapper.updateEntityFromDTO(dto, licenseType);
+        return mapper.toResponseDTO(repository.save(licenseType));
     }
 
     @Override

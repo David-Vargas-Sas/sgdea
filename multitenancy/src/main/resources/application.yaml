@@ -96,6 +96,11 @@ logging:
 # Configuración de seguridad
 security:
   enabled: ${SECURITY_ENABLED:false} # Cambiar a true para habilitar seguridad
+  cors:
+    allowed-origin-patterns: ${SECURITY_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*,https://localhost:*,http://127.0.0.1:*,https://127.0.0.1:*,http://[::1]:*,https://[::1]:*}
+  login:
+    max-failed-attempts: ${SECURITY_LOGIN_MAX_FAILED_ATTEMPTS:5}
+    lock-minutes: ${SECURITY_LOGIN_LOCK_MINUTES:15}
   jwt:
     issuer: ${SECURITY_JWT_ISSUER:sgdea-multitenancy} # Cambiar a un valor único en producción
     secret: ${SECURITY_JWT_SECRET:dev-secret-change-me-dev-secret-change-me} # Cambiar a un valor seguro en producción

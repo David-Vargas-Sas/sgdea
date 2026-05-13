@@ -4,60 +4,48 @@ import com.sgdea.multitenancy.multitenancy.company.application.dto.CompanyCreate
 import com.sgdea.multitenancy.multitenancy.company.application.dto.CompanyResponseDto;
 import com.sgdea.multitenancy.multitenancy.company.application.dto.CompanyUpdateDto;
 import com.sgdea.multitenancy.multitenancy.company.domain.model.Company;
-import com.sgdea.multitenancy.multitenancy.companyType.domain.model.CompanyType;
-import org.springframework.stereotype.Component;
+import org.mapstruct.BeanMapping;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
+import org.mapstruct.Named;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
-@Component
-public class CompanyMapper {
-    public Company toEntity(CompanyCreateDto dto, CompanyType companyType) {
-        Company company = new Company();
-        company.setCompanyType(companyType);
-        company.setCode(normalize(dto.getCode()));
-        company.setName(trim(dto.getName()));
-        company.setTaxId(trim(dto.getTaxId()));
-        company.setVerificationDigit(trim(dto.getVerificationDigit()));
-        company.setLogoPath(trim(dto.getLogoPath()));
-        company.setCreatedBy(trim(dto.getCreatedBy()));
-        return company;
-    }
+@Mapper(componentModel = "spring")
+public interface CompanyMapper {
 
-    public void updateEntity(Company company, CompanyUpdateDto dto, CompanyType companyType) {
-        if (dto.getCompanyTypeId() != null) company.setCompanyType(companyType);
-        if (dto.getCode() != null) company.setCode(normalize(dto.getCode()));
-        if (dto.getName() != null) company.setName(trim(dto.getName()));
-        if (dto.getTaxId() != null) company.setTaxId(trim(dto.getTaxId()));
-        if (dto.getVerificationDigit() != null) company.setVerificationDigit(trim(dto.getVerificationDigit()));
-        if (dto.getLogoPath() != null) company.setLogoPath(trim(dto.getLogoPath()));
-        if (dto.getActive() != null) company.setActive(dto.getActive());
-        if (dto.getUpdatedBy() != null) company.setUpdatedBy(trim(dto.getUpdatedBy()));
-    }
+    // ENTITY -> RESPONSE
+    @Mapping(target = "companyTypeId", source = "companyType.id")
+    @Mapping(target = "companyTypeName", source = "companyType.name")
+    CompanyResponseDto toResponseDTO(Company entity);
 
-    public CompanyResponseDto toResponse(Company company) {
-        CompanyResponseDto dto = new CompanyResponseDto();
-        dto.setId(company.getId());
-        if (company.getCompanyType() != null) {
-            dto.setCompanyTypeId(company.getCompanyType().getId());
-            dto.setCompanyTypeName(company.getCompanyType().getName());
-        }
-        dto.setCode(company.getCode());
-        dto.setName(company.getName());
-        dto.setTaxId(company.getTaxId());
-        dto.setVerificationDigit(company.getVerificationDigit());
-        dto.setLogoPath(company.getLogoPath());
-        dto.setActive(company.getActive());
-        dto.setCreatedAt(company.getCreatedAt());
-        dto.setCreatedBy(company.getCreatedBy());
-        dto.setUpdatedAt(company.getUpdatedAt());
-        dto.setUpdatedBy(company.getUpdatedBy());
-        return dto;
-    }
+    // CREATE DTO -> ENTITY
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "companyType", ignore = true)
+    @Mapping(target = "active", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "updatedBy", ignore = true)
+    @Mapping(target = "code", source = "code", qualifiedByName = "upper")
+    Company toEntity(CompanyCreateDto dto);
 
-    private String normalize(String value) {
+    // UPDATE DTO -> ENTITY (merge)
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "companyType", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "code", source = "code", qualifiedByName = "upper")
+    void updateEntityFromDTO(CompanyUpdateDto dto, @MappingTarget Company entity);
+
+    @Named("upper")
+    default String upper(String value) {
         String trimmed = trim(value);
         return trimmed == null ? null : trimmed.toUpperCase();
     }
 
-    private String trim(String value) {
+    default String trim(String value) {
         return value == null ? null : value.trim();
     }
 }

@@ -4,47 +4,44 @@ import com.sgdea.multitenancy.multitenancy.role.application.dto.RoleCreateDto;
 import com.sgdea.multitenancy.multitenancy.role.application.dto.RoleResponseDto;
 import com.sgdea.multitenancy.multitenancy.role.application.dto.RoleUpdateDto;
 import com.sgdea.multitenancy.multitenancy.role.domain.model.Role;
-import org.springframework.stereotype.Component;
+import org.mapstruct.BeanMapping;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
+import org.mapstruct.Named;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
-@Component
-public class RoleMapper {
-    public Role toEntity(RoleCreateDto dto) {
-        Role role = new Role();
-        role.setCode(normalize(dto.getCode()));
-        role.setName(trim(dto.getName()));
-        role.setDescription(trim(dto.getDescription()));
-        role.setCreatedBy(trim(dto.getCreatedBy()));
-        return role;
-    }
+@Mapper(componentModel = "spring")
+public interface RoleMapper {
 
-    public void updateEntity(Role role, RoleUpdateDto dto) {
-        if (dto.getCode() != null) role.setCode(normalize(dto.getCode()));
-        if (dto.getName() != null) role.setName(trim(dto.getName()));
-        if (dto.getDescription() != null) role.setDescription(trim(dto.getDescription()));
-        if (dto.getActive() != null) role.setActive(dto.getActive());
-        if (dto.getUpdatedBy() != null) role.setUpdatedBy(trim(dto.getUpdatedBy()));
-    }
+    // ENTITY -> RESPONSE
+    RoleResponseDto toResponseDTO(Role entity);
 
-    public RoleResponseDto toResponse(Role role) {
-        RoleResponseDto dto = new RoleResponseDto();
-        dto.setId(role.getId());
-        dto.setCode(role.getCode());
-        dto.setName(role.getName());
-        dto.setDescription(role.getDescription());
-        dto.setActive(role.getActive());
-        dto.setCreatedAt(role.getCreatedAt());
-        dto.setCreatedBy(role.getCreatedBy());
-        dto.setUpdatedAt(role.getUpdatedAt());
-        dto.setUpdatedBy(role.getUpdatedBy());
-        return dto;
-    }
+    // CREATE DTO -> ENTITY
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "active", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "updatedBy", ignore = true)
+    @Mapping(target = "code", source = "code", qualifiedByName = "upper")
+    Role toEntity(RoleCreateDto dto);
 
-    private String normalize(String value) {
+    // UPDATE DTO -> ENTITY (merge)
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "code", source = "code", qualifiedByName = "upper")
+    void updateEntityFromDTO(RoleUpdateDto dto, @MappingTarget Role entity);
+
+    @Named("upper")
+    default String upper(String value) {
         String trimmed = trim(value);
         return trimmed == null ? null : trimmed.toUpperCase();
     }
 
-    private String trim(String value) {
+    default String trim(String value) {
         return value == null ? null : value.trim();
     }
 }

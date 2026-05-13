@@ -4,44 +4,43 @@ import com.sgdea.multitenancy.multitenancy.companyType.application.dto.CompanyTy
 import com.sgdea.multitenancy.multitenancy.companyType.application.dto.CompanyTypeResponseDto;
 import com.sgdea.multitenancy.multitenancy.companyType.application.dto.CompanyTypeUpdateDto;
 import com.sgdea.multitenancy.multitenancy.companyType.domain.model.CompanyType;
-import org.springframework.stereotype.Component;
+import org.mapstruct.BeanMapping;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
+import org.mapstruct.Named;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
-@Component
-public class CompanyTypeMapper {
+@Mapper(componentModel = "spring")
+public interface CompanyTypeMapper {
 
-    public CompanyType toEntity(CompanyTypeCreateDto dto) {
-        CompanyType companyType = new CompanyType();
-        companyType.setName(normalize(dto.getName()));
-        companyType.setCreatedBy(trim(dto.getCreatedBy()));
-        return companyType;
-    }
+    // ENTITY -> RESPONSE
+    CompanyTypeResponseDto toResponseDTO(CompanyType entity);
 
-    public void updateEntity(CompanyType companyType, CompanyTypeUpdateDto dto) {
-        if (dto.getName() != null) {
-            companyType.setName(normalize(dto.getName()));
-        }
-        if (dto.getUpdatedBy() != null) {
-            companyType.setUpdatedBy(trim(dto.getUpdatedBy()));
-        }
-    }
+    // CREATE DTO -> ENTITY
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "updatedBy", ignore = true)
+    @Mapping(target = "name", source = "name", qualifiedByName = "upper")
+    CompanyType toEntity(CompanyTypeCreateDto dto);
 
-    public CompanyTypeResponseDto toResponse(CompanyType companyType) {
-        CompanyTypeResponseDto dto = new CompanyTypeResponseDto();
-        dto.setId(companyType.getId());
-        dto.setName(companyType.getName());
-        dto.setCreatedAt(companyType.getCreatedAt());
-        dto.setCreatedBy(companyType.getCreatedBy());
-        dto.setUpdatedAt(companyType.getUpdatedAt());
-        dto.setUpdatedBy(companyType.getUpdatedBy());
-        return dto;
-    }
+    // UPDATE DTO -> ENTITY (merge)
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "name", source = "name", qualifiedByName = "upper")
+    void updateEntityFromDTO(CompanyTypeUpdateDto dto, @MappingTarget CompanyType entity);
 
-    private String normalize(String value) {
+    @Named("upper")
+    default String upper(String value) {
         String trimmed = trim(value);
         return trimmed == null ? null : trimmed.toUpperCase();
     }
 
-    private String trim(String value) {
+    default String trim(String value) {
         return value == null ? null : value.trim();
     }
 }

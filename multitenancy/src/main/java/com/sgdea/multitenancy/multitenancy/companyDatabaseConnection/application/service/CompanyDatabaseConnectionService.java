@@ -31,26 +31,26 @@ public class CompanyDatabaseConnectionService implements CompanyDatabaseConnecti
     @Override
     @Transactional(readOnly = true)
     public List<CompanyDatabaseConnectionResponseDto> findAll() {
-        return repository.findAll().stream().map(mapper::toResponse).toList();
+        return repository.findAll().stream().map(mapper::toResponseDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public CompanyDatabaseConnectionResponseDto findById(UUID id) {
-        return mapper.toResponse(getEntityById(id));
+        return mapper.toResponseDTO(getEntityById(id));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<CompanyDatabaseConnectionResponseDto> findByCompanyId(UUID companyId) {
-        return repository.findByCompanyId(companyId).stream().map(mapper::toResponse).toList();
+        return repository.findByCompanyId(companyId).stream().map(mapper::toResponseDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<CompanyDatabaseConnectionResponseDto> findAllPaginated(int page, int size, String sortBy, String sortDirection) {
         Sort.Direction direction = "desc".equalsIgnoreCase(sortDirection) ? Sort.Direction.DESC : Sort.Direction.ASC;
-        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponse);
+        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponseDTO);
     }
 
     @Override
@@ -58,8 +58,9 @@ public class CompanyDatabaseConnectionService implements CompanyDatabaseConnecti
     public CompanyDatabaseConnectionResponseDto create(CompanyDatabaseConnectionCreateDto dto) {
         Company company = getCompany(dto.getCompanyId());
         validateUniqueConnectionName(dto.getCompanyId(), dto.getConnectionName(), null);
-        CompanyDatabaseConnection connection = repository.save(mapper.toEntity(dto, company));
-        return mapper.toResponse(connection);
+        CompanyDatabaseConnection connection = mapper.toEntity(dto);
+        connection.setCompany(company);
+        return mapper.toResponseDTO(repository.save(connection));
     }
 
     @Override
@@ -70,8 +71,11 @@ public class CompanyDatabaseConnectionService implements CompanyDatabaseConnecti
         UUID companyId = dto.getCompanyId() == null ? connection.getCompany().getId() : dto.getCompanyId();
         String connectionName = dto.getConnectionName() == null ? connection.getConnectionName() : dto.getConnectionName();
         validateUniqueConnectionName(companyId, connectionName, id);
-        mapper.updateEntity(connection, dto, company);
-        return mapper.toResponse(repository.save(connection));
+        mapper.updateEntityFromDTO(dto, connection);
+        if (company != null) {
+            connection.setCompany(company);
+        }
+        return mapper.toResponseDTO(repository.save(connection));
     }
 
     @Override

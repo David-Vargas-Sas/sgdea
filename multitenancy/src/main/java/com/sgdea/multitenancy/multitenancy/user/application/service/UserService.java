@@ -31,13 +31,13 @@ public class UserService implements UserUseCase {
     @Override
     @Transactional(readOnly = true)
     public List<UserResponseDto> findAll() {
-        return repository.findAll().stream().map(mapper::toResponse).toList();
+        return repository.findAll().stream().map(mapper::toResponseDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public UserResponseDto findById(Long id) {
-        return mapper.toResponse(getEntityById(id));
+        return mapper.toResponseDTO(getEntityById(id));
     }
 
     @Override
@@ -45,14 +45,14 @@ public class UserService implements UserUseCase {
     public UserResponseDto findByEmail(String email) {
         User user = repository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new EntityNotFoundException("No existe un usuario con correo " + email));
-        return mapper.toResponse(user);
+        return mapper.toResponseDTO(user);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<UserResponseDto> findAllPaginated(int page, int size, String sortBy, String sortDirection) {
         Sort.Direction direction = "desc".equalsIgnoreCase(sortDirection) ? Sort.Direction.DESC : Sort.Direction.ASC;
-        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponse);
+        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponseDTO);
     }
 
     @Override
@@ -65,7 +65,10 @@ public class UserService implements UserUseCase {
             throw new IllegalArgumentException("Ya existe un usuario con numero de documento " + dto.getDocumentNumber());
         }
         Role role = getRole(dto.getRoleId());
-        return mapper.toResponse(repository.save(mapper.toEntity(dto, passwordEncoder.encode(dto.getPassword()), role)));
+        User user = mapper.toEntity(dto);
+        user.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
+        user.setRole(role);
+        return mapper.toResponseDTO(repository.save(user));
     }
 
     @Override
@@ -80,8 +83,14 @@ public class UserService implements UserUseCase {
         }
         String passwordHash = dto.getPassword() == null ? null : passwordEncoder.encode(dto.getPassword());
         Role role = dto.getRoleId() == null ? null : getRole(dto.getRoleId());
-        mapper.updateEntity(user, dto, passwordHash, role);
-        return mapper.toResponse(repository.save(user));
+        mapper.updateEntityFromDTO(dto, user);
+        if (passwordHash != null) {
+            user.setPasswordHash(passwordHash);
+        }
+        if (role != null) {
+            user.setRole(role);
+        }
+        return mapper.toResponseDTO(repository.save(user));
     }
 
     @Override

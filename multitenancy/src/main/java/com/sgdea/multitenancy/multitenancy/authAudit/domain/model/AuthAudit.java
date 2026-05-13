@@ -1,7 +1,7 @@
-package com.sgdea.multitenancy.multitenancy.domain.authAudit.model;
+package com.sgdea.multitenancy.multitenancy.authAudit.domain.model;
 
-import com.sgdea.multitenancy.multitenancy.domain.company.model.Company;
-import com.sgdea.multitenancy.multitenancy.domain.user.model.User;
+import com.sgdea.multitenancy.multitenancy.company.domain.model.Company;
+import com.sgdea.multitenancy.multitenancy.user.domain.model.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;

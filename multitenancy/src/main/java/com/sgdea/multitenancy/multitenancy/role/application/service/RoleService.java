@@ -27,13 +27,13 @@ public class RoleService implements RoleUseCase {
     @Override
     @Transactional(readOnly = true)
     public List<RoleResponseDto> findAll() {
-        return repository.findAll().stream().map(mapper::toResponse).toList();
+        return repository.findAll().stream().map(mapper::toResponseDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public RoleResponseDto findById(Long id) {
-        return mapper.toResponse(getEntityById(id));
+        return mapper.toResponseDTO(getEntityById(id));
     }
 
     @Override
@@ -41,14 +41,14 @@ public class RoleService implements RoleUseCase {
     public RoleResponseDto findByCode(String code) {
         Role role = repository.findByCodeIgnoreCase(code)
                 .orElseThrow(() -> new EntityNotFoundException("No existe un rol con codigo " + code));
-        return mapper.toResponse(role);
+        return mapper.toResponseDTO(role);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<RoleResponseDto> findAllPaginated(int page, int size, String sortBy, String sortDirection) {
         Sort.Direction direction = "desc".equalsIgnoreCase(sortDirection) ? Sort.Direction.DESC : Sort.Direction.ASC;
-        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponse);
+        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponseDTO);
     }
 
     @Override
@@ -60,7 +60,7 @@ public class RoleService implements RoleUseCase {
         if (repository.existsByNameIgnoreCase(dto.getName())) {
             throw new IllegalArgumentException("Ya existe un rol con nombre " + dto.getName());
         }
-        return mapper.toResponse(repository.save(mapper.toEntity(dto)));
+        return mapper.toResponseDTO(repository.save(mapper.toEntity(dto)));
     }
 
     @Override
@@ -73,8 +73,8 @@ public class RoleService implements RoleUseCase {
         if (dto.getName() != null && repository.existsByNameIgnoreCaseAndIdNot(dto.getName(), id)) {
             throw new IllegalArgumentException("Ya existe un rol con nombre " + dto.getName());
         }
-        mapper.updateEntity(role, dto);
-        return mapper.toResponse(repository.save(role));
+        mapper.updateEntityFromDTO(dto, role);
+        return mapper.toResponseDTO(repository.save(role));
     }
 
     @Override

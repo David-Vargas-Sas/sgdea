@@ -1,8 +1,8 @@
-package com.sgdea.multitenancy.multitenancy.entrypoints.authAudit.rest;
+package com.sgdea.multitenancy.multitenancy.authAudit.entryPoints.rest;
 
-import com.sgdea.multitenancy.multitenancy.application.authAudit.dto.AuthAuditResponseDto;
-import com.sgdea.multitenancy.multitenancy.application.authAudit.usecase.AuthAuditUseCase;
-import com.sgdea.multitenancy.multitenancy.application.common.dto.ApiResponseDto;
+import com.sgdea.multitenancy.multitenancy.authAudit.application.dto.AuthAuditResponseDto;
+import com.sgdea.multitenancy.multitenancy.authAudit.application.usecase.AuthAuditUseCase;
+import com.sgdea.multitenancy.multitenancy.securityConfig.application.dto.ApiResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;

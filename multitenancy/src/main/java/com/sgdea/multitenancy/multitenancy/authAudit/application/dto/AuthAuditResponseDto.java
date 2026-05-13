@@ -1,4 +1,4 @@
-package com.sgdea.multitenancy.multitenancy.application.authAudit.dto;
+package com.sgdea.multitenancy.multitenancy.authAudit.application.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

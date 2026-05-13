@@ -32,32 +32,32 @@ public class CompanyLicenseService implements CompanyLicenseUseCase {
     @Override
     @Transactional(readOnly = true)
     public List<CompanyLicenseResponseDto> findAll() {
-        return repository.findAll().stream().map(mapper::toResponse).toList();
+        return repository.findAll().stream().map(mapper::toResponseDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public CompanyLicenseResponseDto findById(UUID id) {
-        return mapper.toResponse(getEntityById(id));
+        return mapper.toResponseDTO(getEntityById(id));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<CompanyLicenseResponseDto> findByCompanyId(UUID companyId) {
-        return repository.findByCompanyId(companyId).stream().map(mapper::toResponse).toList();
+        return repository.findByCompanyId(companyId).stream().map(mapper::toResponseDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<CompanyLicenseResponseDto> findByLicenseTypeId(UUID licenseTypeId) {
-        return repository.findByLicenseTypeId(licenseTypeId).stream().map(mapper::toResponse).toList();
+        return repository.findByLicenseTypeId(licenseTypeId).stream().map(mapper::toResponseDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<CompanyLicenseResponseDto> findAllPaginated(int page, int size, String sortBy, String sortDirection) {
         Sort.Direction direction = "desc".equalsIgnoreCase(sortDirection) ? Sort.Direction.DESC : Sort.Direction.ASC;
-        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponse);
+        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponseDTO);
     }
 
     @Override
@@ -65,7 +65,10 @@ public class CompanyLicenseService implements CompanyLicenseUseCase {
     public CompanyLicenseResponseDto create(CompanyLicenseCreateDto dto) {
         Company company = getCompany(dto.getCompanyId());
         LicenseType licenseType = getLicenseType(dto.getLicenseTypeId());
-        return mapper.toResponse(repository.save(mapper.toEntity(dto, company, licenseType)));
+        CompanyLicense companyLicense = mapper.toEntity(dto);
+        companyLicense.setCompany(company);
+        companyLicense.setLicenseType(licenseType);
+        return mapper.toResponseDTO(repository.save(companyLicense));
     }
 
     @Override
@@ -74,8 +77,14 @@ public class CompanyLicenseService implements CompanyLicenseUseCase {
         CompanyLicense companyLicense = getEntityById(id);
         Company company = dto.getCompanyId() == null ? null : getCompany(dto.getCompanyId());
         LicenseType licenseType = dto.getLicenseTypeId() == null ? null : getLicenseType(dto.getLicenseTypeId());
-        mapper.updateEntity(companyLicense, dto, company, licenseType);
-        return mapper.toResponse(repository.save(companyLicense));
+        mapper.updateEntityFromDTO(dto, companyLicense);
+        if (company != null) {
+            companyLicense.setCompany(company);
+        }
+        if (licenseType != null) {
+            companyLicense.setLicenseType(licenseType);
+        }
+        return mapper.toResponseDTO(repository.save(companyLicense));
     }
 
     @Override

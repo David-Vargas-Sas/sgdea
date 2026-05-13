@@ -1,12 +1,12 @@
-package com.sgdea.multitenancy.multitenancy.application.authAudit.service;
+package com.sgdea.multitenancy.multitenancy.authAudit.application.service;
 
-import com.sgdea.multitenancy.multitenancy.application.authAudit.dto.AuthAuditResponseDto;
-import com.sgdea.multitenancy.multitenancy.application.authAudit.mapper.AuthAuditMapper;
-import com.sgdea.multitenancy.multitenancy.application.authAudit.usecase.AuthAuditUseCase;
-import com.sgdea.multitenancy.multitenancy.domain.authAudit.model.AuthAudit;
-import com.sgdea.multitenancy.multitenancy.domain.authAudit.repository.AuthAuditRepository;
-import com.sgdea.multitenancy.multitenancy.domain.company.model.Company;
-import com.sgdea.multitenancy.multitenancy.domain.user.model.User;
+import com.sgdea.multitenancy.multitenancy.authAudit.application.dto.AuthAuditResponseDto;
+import com.sgdea.multitenancy.multitenancy.authAudit.application.mapper.AuthAuditMapper;
+import com.sgdea.multitenancy.multitenancy.authAudit.application.usecase.AuthAuditUseCase;
+import com.sgdea.multitenancy.multitenancy.authAudit.domain.model.AuthAudit;
+import com.sgdea.multitenancy.multitenancy.authAudit.domain.repository.AuthAuditRepository;
+import com.sgdea.multitenancy.multitenancy.company.domain.model.Company;
+import com.sgdea.multitenancy.multitenancy.user.domain.model.User;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -31,7 +31,7 @@ public class AuthAuditService implements AuthAuditUseCase {
     @Transactional(readOnly = true)
     public Page<AuthAuditResponseDto> findAllPaginated(int page, int size) {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return repository.findAll(pageRequest).map(mapper::toResponse);
+        return repository.findAll(pageRequest).map(mapper::toResponseDTO);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -42,6 +42,11 @@ public class AuthAuditService implements AuthAuditUseCase {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordFailure(String eventType, String message, String email) {
         record(eventType, false, message, email, null, null);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordFailure(String eventType, String message, String email, User user, Company company) {
+        record(eventType, false, message, email, user, company);
     }
 
     private void record(String eventType, Boolean success, String message, String email, User user, Company company) {

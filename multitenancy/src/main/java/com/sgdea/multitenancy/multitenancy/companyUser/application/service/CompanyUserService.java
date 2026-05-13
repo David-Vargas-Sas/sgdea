@@ -33,32 +33,32 @@ public class CompanyUserService implements CompanyUserUseCase {
     @Override
     @Transactional(readOnly = true)
     public List<CompanyUserResponseDto> findAll() {
-        return repository.findAll().stream().map(mapper::toResponse).toList();
+        return repository.findAll().stream().map(mapper::toResponseDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public CompanyUserResponseDto findById(Long id) {
-        return mapper.toResponse(getEntityById(id));
+        return mapper.toResponseDTO(getEntityById(id));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<CompanyUserResponseDto> findByCompanyId(UUID companyId) {
-        return repository.findByCompanyId(companyId).stream().map(mapper::toResponse).toList();
+        return repository.findByCompanyId(companyId).stream().map(mapper::toResponseDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<CompanyUserResponseDto> findByUserId(Long userId) {
-        return repository.findByUserId(userId).stream().map(mapper::toResponse).toList();
+        return repository.findByUserId(userId).stream().map(mapper::toResponseDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<CompanyUserResponseDto> findAllPaginated(int page, int size, String sortBy, String sortDirection) {
         Sort.Direction direction = "desc".equalsIgnoreCase(sortDirection) ? Sort.Direction.DESC : Sort.Direction.ASC;
-        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponse);
+        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponseDTO);
     }
 
     @Override
@@ -69,7 +69,10 @@ public class CompanyUserService implements CompanyUserUseCase {
         }
         Company company = getCompany(dto.getCompanyId());
         User user = getUser(dto.getUserId());
-        return mapper.toResponse(repository.save(mapper.toEntity(dto, company, user)));
+        CompanyUser companyUser = mapper.toEntity(dto);
+        companyUser.setCompany(company);
+        companyUser.setUser(user);
+        return mapper.toResponseDTO(repository.save(companyUser));
     }
 
     @Override
@@ -83,8 +86,14 @@ public class CompanyUserService implements CompanyUserUseCase {
         }
         Company company = dto.getCompanyId() == null ? null : getCompany(dto.getCompanyId());
         User user = dto.getUserId() == null ? null : getUser(dto.getUserId());
-        mapper.updateEntity(companyUser, dto, company, user);
-        return mapper.toResponse(repository.save(companyUser));
+        mapper.updateEntityFromDTO(dto, companyUser);
+        if (company != null) {
+            companyUser.setCompany(company);
+        }
+        if (user != null) {
+            companyUser.setUser(user);
+        }
+        return mapper.toResponseDTO(repository.save(companyUser));
     }
 
     @Override

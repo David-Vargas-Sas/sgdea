@@ -17,7 +17,6 @@ import com.sgdea.multitenancy.multitenancy.user.domain.repository.UserRepository
 import com.sgdea.multitenancy.multitenancy.securityConfig.infrastructure.security.JwtTokenService;
 import com.sgdea.multitenancy.multitenancy.securityConfig.infrastructure.security.JwtSessionCacheService;
 import jakarta.persistence.EntityNotFoundException;
-import lombok.AllArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -28,7 +27,6 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-@AllArgsConstructor
 public class AuthService implements AuthUseCase {
     private final UserRepository userRepository;
     private final CompanyUserRepository companyUserRepository;
@@ -37,12 +35,29 @@ public class AuthService implements AuthUseCase {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService jwtTokenService;
     private final JwtSessionCacheService jwtSessionCacheService;
-    @Value("${security.jwt.access-token-minutes:30}")
     private final int accessTokenMinutes;
-    @Value("${security.jwt.refresh-token-hours:8}")
     private final int refreshTokenHours;
 
-
+    public AuthService(
+            UserRepository userRepository,
+            CompanyUserRepository companyUserRepository,
+            CompanyDatabaseConnectionRepository connectionRepository,
+            AuthSessionRepository authSessionRepository,
+            PasswordEncoder passwordEncoder,
+            JwtTokenService jwtTokenService,
+            JwtSessionCacheService jwtSessionCacheService,
+            @Value("${security.jwt.access-token-minutes:30}") int accessTokenMinutes,
+            @Value("${security.jwt.refresh-token-hours:8}") int refreshTokenHours) {
+        this.userRepository = userRepository;
+        this.companyUserRepository = companyUserRepository;
+        this.connectionRepository = connectionRepository;
+        this.authSessionRepository = authSessionRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtTokenService = jwtTokenService;
+        this.jwtSessionCacheService = jwtSessionCacheService;
+        this.accessTokenMinutes = accessTokenMinutes;
+        this.refreshTokenHours = refreshTokenHours;
+    }
 
     @Override
     @Transactional

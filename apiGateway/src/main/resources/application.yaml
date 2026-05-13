@@ -9,86 +9,95 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
   graphql:
-    path: /graphql
+    http:
+      path: /graphql   # spring.graphql.path → spring.graphql.http.path (Spring Boot 3.4+)
 
-  # Redis connection (defaults for local dev; override via env vars in prod)
-  redis:
-    host: ${SPRING_REDIS_HOST:localhost}
-    port: ${SPRING_REDIS_PORT:6379}
-    lettuce:
-      pool:
-        max-active: 16
-        max-idle: 8
-        min-idle: 2
+  # ── Docker Compose ──────────────────────────────────────────────────────────
+  # Deshabilitado en la config base para evitar que Spring Boot busque
+  # compose.yaml en el directorio de trabajo (puede no coincidir con apiGateway/).
+  # Habilitarlo explícitamente en application-dev.yml con la ruta correcta.
+  docker:
+    compose:
+      enabled: false
+
+  # ── Redis — migrado a spring.data.redis.* (Spring Boot 3.x) ────────────────
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
 
   cloud:
     gateway:
-      # HTTP client tuning (shared across all profiles)
-      httpclient:
-        connect-timeout: 5000
-        response-timeout: 30s
-        pool:
-          type: ELASTIC
-          max-connections: 500
-          acquire-timeout: 45000
+      server:
+        webflux:
+          # HTTP client tuning — spring.cloud.gateway.httpclient.* →
+          # spring.cloud.gateway.server.webflux.httpclient.* (Spring Cloud 2025.x)
+          httpclient:
+            connect-timeout: 5000
+            response-timeout: 30s
+            pool:
+              type: ELASTIC
+              max-connections: 500
+              acquire-timeout: 45000
 
-      # Filtros aplicados a TODAS las rutas:
-      # X-Gateway-Source permite a los microservicios saber que la petición
-      # fue validada por el Gateway y confiar en los headers X-User-*.
-      default-filters:
-        - AddRequestHeader=X-Gateway-Source, sgdea-gateway
+          # Filtros aplicados a TODAS las rutas:
+          # X-Gateway-Source permite a los microservicios saber que la petición
+          # fue validada por el Gateway y confiar en los headers X-User-*.
+          default-filters:
+            - AddRequestHeader=X-Gateway-Source, sgdea-gateway
 
-      routes:
-        # ── Administración ──────────────────────────────────────────────────
-        - id: administracion
-          uri: ${ADMIN_SERVICE_URL:http://localhost:9090}
-          predicates:
-            - Path=/administracion/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 20
-                redis-rate-limiter.burstCapacity: 40
-                redis-rate-limiter.requestedTokens: 1
+          routes:
+            # ── Administración ──────────────────────────────────────────────────
+            - id: administracion
+              uri: ${ADMIN_SERVICE_URL:http://localhost:9090}
+              predicates:
+                - Path=/administracion/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    redis-rate-limiter.requestedTokens: 1
 
-        - id: administracion-graphql
-          uri: ${ADMIN_SERVICE_URL:http://localhost:9090}
-          predicates:
-            - Path=/graphql
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 20
-                redis-rate-limiter.burstCapacity: 40
-                redis-rate-limiter.requestedTokens: 1
+            - id: administracion-graphql
+              uri: ${ADMIN_SERVICE_URL:http://localhost:9090}
+              predicates:
+                - Path=/graphql
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    redis-rate-limiter.requestedTokens: 1
 
-        # ── Multitenancy — Auth (rutas públicas) ────────────────────────────
-        # Orden: más específico PRIMERO. Rate limit bajo para proteger
-        # contra fuerza bruta en login/refresh (por IP del cliente).
-        - id: multitenancy-auth
-          uri: ${MULTITENANCY_SERVICE_URL:http://localhost:8081}
-          predicates:
-            - Path=/multitenancy/auth/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 5
-                redis-rate-limiter.burstCapacity: 10
-                redis-rate-limiter.requestedTokens: 1
+            # ── Multitenancy — Auth (rutas públicas) ────────────────────────────
+            - id: multitenancy-auth
+              uri: ${MULTITENANCY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/multitenancy/auth/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 10
+                    redis-rate-limiter.requestedTokens: 1
 
-        # ── Multitenancy — API (rutas protegidas con JWT) ───────────────────
-        # Rate limit por usuario (email, resuelto por JwtClaimsRelayFilter).
-        # Orden: más general DESPUÉS de multitenancy-auth.
-        - id: multitenancy
-          uri: ${MULTITENANCY_SERVICE_URL:http://localhost:8081}
-          predicates:
-            - Path=/multitenancy/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 20
-                redis-rate-limiter.burstCapacity: 40
-                redis-rate-limiter.requestedTokens: 1
+            # ── Multitenancy — API (rutas protegidas con JWT) ───────────────────
+            - id: multitenancy
+              uri: ${MULTITENANCY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/multitenancy/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    redis-rate-limiter.requestedTokens: 1
 
 
   # OAuth2 client deshabilitado: el Gateway usa HMAC-SHA256 shared-secret JWT
@@ -98,14 +107,26 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,prometheus,metrics,env,beans,loggers
+      base-path: /actuator
   endpoint:
     health:
-      show-details: when-authorized
+      show-details: always
+    prometheus:
+      # Spring Boot 3.4+: reemplaza 'enabled: true' — valores: unrestricted | read-only | none
+      access: unrestricted
   # Zipkin tracing (Spring Boot 3.x — reemplaza spring.zipkin.base-url de 2.x)
   zipkin:
     tracing:
       endpoint: ${ZIPKIN_URL:http://localhost:9411}/api/v2/spans
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5,0.95,0.99
 
 logging:
   level:
@@ -120,9 +141,6 @@ services:
 
 # ---------------------------------------------------------------------------
 # Configuración JWT unificada — secreto compartido con el microservicio multitenancy.
-# El Gateway valida la firma HMAC-SHA256 de los tokens emitidos por multitenancy.
-# En producción, SECURITY_JWT_SECRET debe coincidir exactamente entre ambos servicios
-# (K8s Secret, Docker Secrets, etc). NUNCA hardcodear en código ni en producción.
 # ---------------------------------------------------------------------------
 security:
   jwt:
@@ -134,8 +152,4 @@ security:
 # - Este archivo contiene la configuración BASE compartida por todos los perfiles.
 # - Use application-dev.yml para sobreescrituras de desarrollo local.
 # - Use application-prod.yml para sobreescrituras de producción.
-# - Todas las credenciales y URLs sensibles deben proveerse como variables de
-#   entorno en producción (K8s secrets, Docker env, etc.). Nunca hardcodear.
-# - MULTITENANCY_SERVICE_URL apunta al microservicio de multitenancy.
 # ---------------------------------------------------------------------------
-

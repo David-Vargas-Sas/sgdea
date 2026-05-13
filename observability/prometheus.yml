@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Configuración de Prometheus para el stack SGDEA
+#
+# Cada microservicio expone métricas en:  /actuator/prometheus
+#
+# Para recargar la configuración sin reiniciar Prometheus:
+#   curl -X POST http://localhost:9090/-/reload
+# ─────────────────────────────────────────────────────────────────────────────
+
+global:
+  scrape_interval: 15s          # Cada 15 s Prometheus consulta a los targets
+  evaluation_interval: 15s      # Cada 15 s evalúa las alertas
+  # Etiqueta global añadida a todas las series (útil para entornos multi-cluster)
+  external_labels:
+    environment: development
+
+# ── Reglas de alerta (opcional, agregar archivos .yml en /etc/prometheus/rules/)
+rule_files: []
+# rule_files:
+#   - "rules/*.yml"
+
+# ── Alertmanager (opcional — descomentar cuando se configure Alertmanager)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ["alertmanager:9093"]
+
+# ── Jobs de scraping ──────────────────────────────────────────────────────────
+scrape_configs:
+
+  # ── API Gateway (puerto 8080) ───────────────────────────────────────────────
+  # Punto de entrada de todos los requests; métricas de routing, rate-limiting, JWT.
+  - job_name: "sgdea-apigateway"
+    metrics_path: /actuator/prometheus
+    scrape_interval: 10s          # Más frecuente: es el cuello de botella
+    static_configs:
+      - targets:
+          - "host.docker.internal:8080"   # En Linux → dirección IP del host local
+        labels:
+          service: "apiGateway"
+          team: "sgdea"
+
+  # ── Microservicio Administración (puerto 9090) ──────────────────────────────
+  # Métricas de BD (Hikari), JPA, HTTP y JVM.
+  - job_name: "sgdea-administracion"
+    metrics_path: /actuator/prometheus
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - "host.docker.internal:9090"
+        labels:
+          service: "administracion"
+          team: "sgdea"
+
+  # ── Microservicio Multitenancy (puerto 8081) ────────────────────────────────
+  # Métricas de BD (Hikari), Redis, JWT, HTTP y JVM.
+  - job_name: "sgdea-multitenancy"
+    metrics_path: /actuator/prometheus
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - "host.docker.internal:8081"
+        labels:
+          service: "multitenancy"
+          team: "sgdea"
+
+  # ── Prometheus se auto-monitorea ────────────────────────────────────────────
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+

@@ -1,0 +1,69 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Configuración EXCLUSIVA para tests del apiGateway.
+# Sobreescribe application.yaml durante la ejecución de pruebas.
+#
+# Objetivo: permitir que el contexto Spring cargue correctamente sin necesitar
+# servicios externos (Redis, Docker Compose).
+# ─────────────────────────────────────────────────────────────────────────────
+
+spring:
+  # ── Docker Compose ──────────────────────────────────────────────────────────
+  # Deshabilitar el arranque automático de docker-compose en tests.
+  # spring-boot-docker-compose intentaría levantar compose.yaml y fallaría
+  # si Docker no está disponible en el entorno de CI/test.
+  docker:
+    compose:
+      enabled: false
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  # Migrado a spring.data.redis.* (Spring Boot 3.x).
+  # El contexto de test NO necesita Redis real porque las rutas están deshabilitadas.
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 100ms
+      lettuce:
+        pool:
+          max-active: 1
+          max-idle: 1
+          min-idle: 0
+
+  # ── Spring Cloud Gateway ────────────────────────────────────────────────────
+  # Eliminar todas las rutas en tests: evita que el RequestRateLimiter
+  # (que depende de Redis) intente crear beans de conexión al iniciar.
+  cloud:
+    # Deshabilitar el mecanismo de bootstrap heredado de Spring Cloud (pre-Boot 2.4).
+    # En Spring Boot 3.5.x, el API de ConfigDataEnvironmentPostProcessor cambió y el
+    # BootstrapConfigFileApplicationListener de spring-cloud-context lanza NoSuchMethodError.
+    bootstrap:
+      enabled: false
+    gateway:
+      server:
+        webflux:
+          routes: []
+          default-filters: []
+
+# ── Seguridad JWT ────────────────────────────────────────────────────────────
+# Secreto fijo para tests (la longitud mínima para HMAC-SHA256 es 32 chars).
+security:
+  jwt:
+    secret: test-secret-only-for-tests-do-not-use-in-production
+    issuer: sgdea-multitenancy
+
+# ── Actuator ────────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    prometheus:
+      access: unrestricted
+
+# ── Logging ─────────────────────────────────────────────────────────────────
+logging:
+  level:
+    root: WARN
+    com.sgdea: INFO
+

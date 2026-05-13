@@ -2,99 +2,118 @@ server:
   port: ${SERVER_PORT:8080}
 
 spring:
-  profiles:
-    active: prod
-
   application:
     name: apiGateway
 
-  # Redis en producción — todos los valores desde el orquestador/secretos
-  redis:
-    host: ${SPRING_REDIS_HOST}
-    port: ${SPRING_REDIS_PORT:6379}
-    lettuce:
-      pool:
-        max-active: 16
-        max-idle: 8
-        min-idle: 2
+  # Docker Compose deshabilitado en producción (se usan servicios reales)
+  docker:
+    compose:
+      enabled: false
+
+  # ── Redis en producción — migrado a spring.data.redis.* (Spring Boot 3.x) ──
+  # Todos los valores deben proveerse desde el orquestador/secretos.
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST}
+      port: ${SPRING_REDIS_PORT:6379}
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
 
   # OAuth2 client deshabilitado: el Gateway usa HMAC-SHA256 shared-secret JWT.
   # No se requiere proveedor OIDC externo en esta configuración.
 
   cloud:
     gateway:
-      httpclient:
-        connect-timeout: 5000
-        response-timeout: 30s
-        pool:
-          type: ELASTIC
-          max-connections: 500
-          acquire-timeout: 45000
+      server:
+        webflux:
+          # spring.cloud.gateway.httpclient.* → spring.cloud.gateway.server.webflux.httpclient.*
+          httpclient:
+            connect-timeout: 5000
+            response-timeout: 30s
+            pool:
+              type: ELASTIC
+              max-connections: 500
+              acquire-timeout: 45000
 
-      routes:
-        # ── Administración ──────────────────────────────────────────────────
-        - id: administracion
-          uri: ${ADMIN_SERVICE_URL:http://administracion:9090}
-          predicates:
-            - Path=/administracion/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 20
-                redis-rate-limiter.burstCapacity: 40
-                redis-rate-limiter.requestedTokens: 1
+          routes:
+            # ── Administración ──────────────────────────────────────────────────
+            - id: administracion
+              uri: ${ADMIN_SERVICE_URL:http://administracion:9090}
+              predicates:
+                - Path=/administracion/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    redis-rate-limiter.requestedTokens: 1
 
-        - id: administracion-graphql
-          uri: ${ADMIN_SERVICE_URL:http://administracion:9090}
-          predicates:
-            - Path=/graphql
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 20
-                redis-rate-limiter.burstCapacity: 40
-                redis-rate-limiter.requestedTokens: 1
+            - id: administracion-graphql
+              uri: ${ADMIN_SERVICE_URL:http://administracion:9090}
+              predicates:
+                - Path=/graphql
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    redis-rate-limiter.requestedTokens: 1
 
-        # ── Multitenancy — Auth (rutas públicas) ────────────────────────────
-        # Límite bajo para proteger login/refresh de ataques de fuerza bruta.
-        # KeyResolver: IP del cliente (por X-Forwarded-For o remoteAddress).
-        - id: multitenancy-auth
-          uri: ${MULTITENANCY_SERVICE_URL:http://multitenancy:8081}
-          predicates:
-            - Path=/multitenancy/auth/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 5
-                redis-rate-limiter.burstCapacity: 10
-                redis-rate-limiter.requestedTokens: 1
+            # ── Multitenancy — Auth (rutas públicas) ────────────────────────────
+            # Límite bajo para proteger login/refresh de ataques de fuerza bruta.
+            # KeyResolver: IP del cliente (por X-Forwarded-For o remoteAddress).
+            - id: multitenancy-auth
+              uri: ${MULTITENANCY_SERVICE_URL:http://multitenancy:8081}
+              predicates:
+                - Path=/multitenancy/auth/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 10
+                    redis-rate-limiter.requestedTokens: 1
 
-        # ── Multitenancy — API (rutas protegidas con JWT) ───────────────────
-        # Límite más alto para uso normal de la API.
-        # KeyResolver: email del usuario (X-User-Email inyectado por JwtClaimsRelayFilter).
-        - id: multitenancy
-          uri: ${MULTITENANCY_SERVICE_URL:http://multitenancy:8081}
-          predicates:
-            - Path=/multitenancy/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 20
-                redis-rate-limiter.burstCapacity: 40
-                redis-rate-limiter.requestedTokens: 1
+            # ── Multitenancy — API (rutas protegidas con JWT) ───────────────────
+            # Límite más alto para uso normal de la API.
+            # KeyResolver: email del usuario (X-User-Email inyectado por JwtClaimsRelayFilter).
+            - id: multitenancy
+              uri: ${MULTITENANCY_SERVICE_URL:http://multitenancy:8081}
+              predicates:
+                - Path=/multitenancy/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    redis-rate-limiter.requestedTokens: 1
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus     # SOLO estos tres en producción
+      base-path: /actuator
   endpoint:
     health:
-      show-details: never
+      show-details: never                   # En prod no exponer detalles públicamente
+    prometheus:
+      # Spring Boot 3.4+: reemplaza 'enabled: true' — valores: unrestricted | read-only | none
+      access: unrestricted
   # Zipkin tracing (Spring Boot 3.x — reemplaza spring.zipkin.base-url de 2.x)
   zipkin:
     tracing:
       endpoint: ${ZIPKIN_URL}/api/v2/spans
+  metrics:
+    tags:
+      application: ${spring.application.name:apiGateway}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5,0.95,0.99
 
 logging:
   level:

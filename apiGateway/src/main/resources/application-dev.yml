@@ -2,72 +2,80 @@ server:
   port: 8080
 
 spring:
-  profiles:
-    active: dev
+  # ── Docker Compose — habilitado SOLO en dev con ruta explícita ──────────────
+  # La ruta es relativa al directorio de trabajo. Cuando se ejecuta desde IntelliJ
+  # o con 'mvnw spring-boot:run' dentro de apiGateway/, la ruta es correcta.
+  docker:
+    compose:
+      # Docker Compose está DESHABILITADO por defecto para que la app arranque
+      # aunque Docker Desktop no esté corriendo.
+      #
+      # Para habilitar (requiere Docker Desktop activo):
+      #   - Variable de entorno: SPRING_DOCKER_COMPOSE_ENABLED=true
+      #   - O en IntelliJ: Edit Configurations → Environment variables
+      enabled: ${SPRING_DOCKER_COMPOSE_ENABLED:false}
+      # Ruta relativa al CWD del proceso.
+      # CWD = raíz del proyecto (sgdea/)  → apiGateway/compose.yaml ✓
+      # CWD = módulo (apiGateway/)        → sobreescribir con COMPOSE_FILE=compose.yaml
+      file: ${COMPOSE_FILE:apiGateway/compose.yaml}
 
-  # Redis local (sin pool adicional; hereda config base)
-  redis:
-    host: localhost
-    port: 6379
+  # ── Redis local — migrado a spring.data.redis.* (Spring Boot 3.x) ──────────
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
   cloud:
     gateway:
-      # default-filters heredado del base (X-Gateway-Source), se puede sobreescribir aquí si es necesario
-      routes:
-        # ── Administración ──────────────────────────────────────────────────
-        - id: administracion
-          uri: http://localhost:9090
-          predicates:
-            - Path=/administracion/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 20
-                redis-rate-limiter.burstCapacity: 40
-                redis-rate-limiter.requestedTokens: 1
+      server:
+        webflux:
+          routes:
+            # ── Administración ──────────────────────────────────────────────────
+            - id: administracion
+              uri: http://localhost:9090
+              predicates:
+                - Path=/administracion/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    redis-rate-limiter.requestedTokens: 1
 
-        - id: administracion-graphql
-          uri: http://localhost:9090
-          predicates:
-            - Path=/graphql
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 20
-                redis-rate-limiter.burstCapacity: 40
-                redis-rate-limiter.requestedTokens: 1
+            - id: administracion-graphql
+              uri: http://localhost:9090
+              predicates:
+                - Path=/graphql
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    redis-rate-limiter.requestedTokens: 1
 
-        # ── Multitenancy — Auth (rutas públicas) ────────────────────────────
-        # Más restrictivo para proteger login/refresh de fuerza bruta (rate limit por IP).
-        - id: multitenancy-auth
-          uri: http://localhost:8081
-          predicates:
-            - Path=/multitenancy/auth/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 5
-                redis-rate-limiter.burstCapacity: 10
-                redis-rate-limiter.requestedTokens: 1
+            # ── Multitenancy — Auth (rutas públicas) ────────────────────────────
+            - id: multitenancy-auth
+              uri: http://localhost:8081
+              predicates:
+                - Path=/multitenancy/auth/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 10
+                    redis-rate-limiter.requestedTokens: 1
 
-        # ── Multitenancy — API (rutas protegidas) ───────────────────────────
-        # Rate limit por usuario autenticado (email desde JWT).
-        - id: multitenancy
-          uri: http://localhost:8081
-          predicates:
-            - Path=/multitenancy/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 20
-                redis-rate-limiter.burstCapacity: 40
-                redis-rate-limiter.requestedTokens: 1
-
-# URLs de servicio explícitas para dev
-ADMIN_SERVICE_URL: http://localhost:9090
-ADMIN_SERVICE_GRAPHQL_URL: http://localhost:9090/graphql
-MULTITENANCY_SERVICE_URL: http://localhost:8081
-ZIPKIN_URL: http://localhost:9411
+            # ── Multitenancy — API (rutas protegidas) ───────────────────────────
+            - id: multitenancy
+              uri: http://localhost:8081
+              predicates:
+                - Path=/multitenancy/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    redis-rate-limiter.requestedTokens: 1
 
 logging:
   level:
@@ -87,4 +95,3 @@ security:
   jwt:
     secret: dev-secret-change-me-dev-secret-change-me
     issuer: sgdea-multitenancy
-

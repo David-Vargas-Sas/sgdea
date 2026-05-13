@@ -25,8 +25,6 @@
         <java.version>17</java.version>
         <!-- Alineado con administracion y multitenancy -->
         <netflix-dgs.version>10.5.0</netflix-dgs.version>
-        <!-- Spring Modulith 2.x es compatible con Spring Boot 3.4+ -->
-        <spring-modulith.version>2.0.6</spring-modulith.version>
     </properties>
 
     <dependencies>
@@ -85,20 +83,13 @@
         </dependency>
 
         <!-- ── Spring Modulith ───────────────────────────────────────────── -->
-        <dependency>
-            <groupId>org.springframework.modulith</groupId>
-            <artifactId>spring-modulith-starter-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.modulith</groupId>
-            <artifactId>spring-modulith-actuator</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.modulith</groupId>
-            <artifactId>spring-modulith-observability</artifactId>
-            <scope>runtime</scope>
-        </dependency>
+        <!--
+          Spring Modulith 2.0.6 llama internamente a
+          ConfigDataEnvironmentPostProcessor.applyTo() con una firma que cambió en
+          Spring Boot 3.5.x, causando NoSuchMethodError en runtime.
+          Un API Gateway es infraestructura pura y NO requiere Spring Modulith
+          (diseñado para servicios de dominio). Se elimina de este módulo.
+        -->
 
         <!-- ── Utilidades ────────────────────────────────────────────────── -->
         <dependency>
@@ -141,23 +132,17 @@
             <artifactId>graphql-dgs-spring-graphql-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.modulith</groupId>
-            <artifactId>spring-modulith-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
+        <!-- spring-modulith-starter-test eliminado junto con spring-modulith -->
 
     </dependencies>
 
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>org.springframework.modulith</groupId>
-                <artifactId>spring-modulith-bom</artifactId>
-                <version>${spring-modulith.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
+            <!--
+              spring-modulith-bom eliminado: spring-modulith incompatible con Spring Boot 3.5.x
+              (NoSuchMethodError en ApplicationModuleDetectionStrategyLookup.getStrategy).
+              Un Gateway no requiere Spring Modulith.
+            -->
             <dependency>
                 <groupId>com.netflix.graphql.dgs</groupId>
                 <artifactId>graphql-dgs-platform-dependencies</artifactId>
@@ -165,11 +150,12 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!-- Spring Cloud 2024.0.x es compatible con Spring Boot 3.3.x – 3.5.x -->
+            <!-- Spring Cloud 2025.0.x es compatible con Spring Boot 3.5.x (gateway 4.3.x) -->
+            <!-- 2025.1.x ya requiere Spring Boot 4.x / Spring Framework 7.x → NO usar aquí -->
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
-                <version>2024.0.0</version>
+                <version>2025.0.2</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

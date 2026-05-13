@@ -9,7 +9,7 @@ import com.sgdea.multitenancy.multitenancy.company.domain.model.Company;
 import com.sgdea.multitenancy.multitenancy.company.domain.repository.CompanyRepository;
 import com.sgdea.multitenancy.multitenancy.companyDatabaseConnection.domain.model.CompanyDatabaseConnection;
 import com.sgdea.multitenancy.multitenancy.companyDatabaseConnection.domain.repository.CompanyDatabaseConnectionRepository;
-import jakarta.persistence.EntityNotFoundException;
+import com.sgdea.multitenancy.multitenancy.securityConfig.infrastructure.security.DatabaseCredentialEncryptionService;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -26,31 +26,32 @@ public class CompanyDatabaseConnectionService implements CompanyDatabaseConnecti
     private final CompanyDatabaseConnectionRepository repository;
     private final CompanyRepository companyRepository;
     private final CompanyDatabaseConnectionMapper mapper;
+    private final DatabaseCredentialEncryptionService credentialEncryptionService;
 
 
     @Override
     @Transactional(readOnly = true)
     public List<CompanyDatabaseConnectionResponseDto> findAll() {
-        return repository.findAll().stream().map(mapper::toResponseDTO).toList();
+        return repository.findAll().stream().map(this::toResponseDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public CompanyDatabaseConnectionResponseDto findById(UUID id) {
-        return mapper.toResponseDTO(getEntityById(id));
+        return toResponseDTO(getEntityById(id));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<CompanyDatabaseConnectionResponseDto> findByCompanyId(UUID companyId) {
-        return repository.findByCompanyId(companyId).stream().map(mapper::toResponseDTO).toList();
+        return repository.findByCompanyId(companyId).stream().map(this::toResponseDTO).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<CompanyDatabaseConnectionResponseDto> findAllPaginated(int page, int size, String sortBy, String sortDirection) {
         Sort.Direction direction = "desc".equalsIgnoreCase(sortDirection) ? Sort.Direction.DESC : Sort.Direction.ASC;
-        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(mapper::toResponseDTO);
+        return repository.findAll(PageRequest.of(page, size, Sort.by(direction, sortBy))).map(this::toResponseDTO);
     }
 
     @Override
@@ -60,7 +61,8 @@ public class CompanyDatabaseConnectionService implements CompanyDatabaseConnecti
         validateUniqueConnectionName(dto.getCompanyId(), dto.getConnectionName(), null);
         CompanyDatabaseConnection connection = mapper.toEntity(dto);
         connection.setCompany(company);
-        return mapper.toResponseDTO(repository.save(connection));
+        encryptCredentials(connection);
+        return toResponseDTO(repository.save(connection));
     }
 
     @Override
@@ -75,7 +77,8 @@ public class CompanyDatabaseConnectionService implements CompanyDatabaseConnecti
         if (company != null) {
             connection.setCompany(company);
         }
-        return mapper.toResponseDTO(repository.save(connection));
+        encryptCredentials(connection);
+        return toResponseDTO(repository.save(connection));
     }
 
     @Override
@@ -96,6 +99,25 @@ public class CompanyDatabaseConnectionService implements CompanyDatabaseConnecti
                 : "Conexion de base de datos desactivada correctamente";
     }
 
+    @Transactional
+    public int encryptStoredPlaintextCredentials() {
+        List<CompanyDatabaseConnection> connections = repository.findAll();
+        List<CompanyDatabaseConnection> updatedConnections = new java.util.ArrayList<>();
+
+        for (CompanyDatabaseConnection connection : connections) {
+            boolean changed = encryptCredentials(connection);
+            if (changed) {
+                updatedConnections.add(connection);
+            }
+        }
+
+        if (!updatedConnections.isEmpty()) {
+            repository.saveAll(updatedConnections);
+        }
+
+        return updatedConnections.size();
+    }
+
     private void validateUniqueConnectionName(UUID companyId, String connectionName, UUID currentId) {
         boolean exists = currentId == null
                 ? repository.existsByCompanyIdAndConnectionNameIgnoreCase(companyId, connectionName)
@@ -111,5 +133,25 @@ public class CompanyDatabaseConnectionService implements CompanyDatabaseConnecti
 
     private Company getCompany(UUID id) {
         return companyRepository.getReferenceById(id);
+    }
+
+    private boolean encryptCredentials(CompanyDatabaseConnection connection) {
+        String currentPassword = connection.getEncryptedPassword();
+        String currentConnectionString = connection.getEncryptedConnectionString();
+        String encryptedPassword = credentialEncryptionService.encryptIfNeeded(currentPassword);
+        String encryptedConnectionString = credentialEncryptionService.encryptIfNeeded(currentConnectionString);
+
+        connection.setEncryptedPassword(encryptedPassword);
+        connection.setEncryptedConnectionString(encryptedConnectionString);
+
+        return !java.util.Objects.equals(currentPassword, encryptedPassword)
+                || !java.util.Objects.equals(currentConnectionString, encryptedConnectionString);
+    }
+
+    private CompanyDatabaseConnectionResponseDto toResponseDTO(CompanyDatabaseConnection connection) {
+        CompanyDatabaseConnectionResponseDto response = mapper.toResponseDTO(connection);
+        response.setEncryptedPassword(null);
+        response.setEncryptedConnectionString(null);
+        return response;
     }
 }

@@ -118,6 +118,10 @@ security:
     secret: ${SECURITY_JWT_SECRET}                  # OBLIGATORIO — sin default en prod
     access-token-minutes: ${SECURITY_JWT_ACCESS_TOKEN_MINUTES:30}
     refresh-token-hours: ${SECURITY_JWT_REFRESH_TOKEN_HOURS:8}
+  database-connection:
+    encryption-secret: ${SECURITY_DATABASE_CONNECTION_ENCRYPTION_SECRET}
+    migration:
+      encrypt-plaintext-on-startup: ${SECURITY_DATABASE_CONNECTION_MIGRATE_PLAINTEXT:true}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Variables de entorno requeridas en producción:
@@ -128,6 +132,8 @@ security:
 #   SPRING_REDIS_PORT                   Puerto Redis (default: 6379)
 #   SECURITY_JWT_SECRET                 Secreto HMAC-SHA256 compartido con Gateway (OBLIGATORIO)
 #   SECURITY_JWT_ISSUER                 Issuer JWT (default: sgdea-multitenancy)
+#   SECURITY_DATABASE_CONNECTION_ENCRYPTION_SECRET  Secreto para cifrar credenciales de conexiones (OBLIGATORIO)
+#   SECURITY_DATABASE_CONNECTION_MIGRATE_PLAINTEXT  Cifra credenciales antiguas en claro al iniciar (default: true)
 #   HIKARI_POOL_SIZE                    Conexiones BD (default: 25; fórmula: CPUs×2+1)
 #   HIKARI_LEAK_THRESHOLD               ms antes de WARNING por fuga (default: 60000)
 #   TOMCAT_MAX_THREADS                  Hilos Tomcat (default: 200)

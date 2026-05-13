@@ -82,7 +82,7 @@ public class AuthService implements AuthUseCase {
         closeActiveSessions(user.getId());
         AuthSession session = createSession(user, company, connection);
         // Cachear la sesión en Redis para evitar consultas a BD en cada request
-        jwtSessionCacheService.cacheSession(session);
+        jwtSessionCacheService.cacheSession(session, user.getEmail(), user.getRole().getCode());
         return buildLoginResponse(session);
     }
 
@@ -101,7 +101,7 @@ public class AuthService implements AuthUseCase {
         session.setExpiresAt(accessExpiresAt);
         AuthSession saved = authSessionRepository.save(session);
         // Actualizar el caché con el nuevo token
-        jwtSessionCacheService.cacheSession(saved);
+        jwtSessionCacheService.cacheSession(saved, session.getUser().getEmail(), session.getUser().getRole().getCode());
         return buildLoginResponse(saved);
     }
 
@@ -204,8 +204,6 @@ public class AuthService implements AuthUseCase {
     private AuthLoginResponseDto buildLoginResponse(AuthSession session) {
         User user = session.getUser();
         Company company = session.getCompany();
-        CompanyDatabaseConnection connection = session.getConnection();
-
         return AuthLoginResponseDto.builder()
                 .token(session.getToken())
                 .refreshToken(session.getRefreshToken())
@@ -224,10 +222,6 @@ public class AuthService implements AuthUseCase {
                 .companyId(company.getId())
                 .companyCode(company.getCode())
                 .companyName(company.getName())
-                .connectionId(connection.getId())
-                .connectionName(connection.getConnectionName())
-                .provider(connection.getProvider())
-                .databaseName(connection.getDatabaseName())
                 .build();
     }
 }

@@ -17,6 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Component
@@ -37,31 +38,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         try {
-            // 1. Validar firma y expiración del JWT (operación local, sin I/O)
-            jwtTokenService.validateAndGetClaims(token);
+            Map<String, Object> claims = jwtTokenService.validateAndGetClaims(token);
+            String email = getStringClaim(claims, "email");
+            String roleCode = getStringClaim(claims, "roleCode");
 
-            // 2. Intentar obtener la sesión desde Redis (cache-aside)
             Optional<JwtSessionCacheDto> cached = jwtSessionCacheService.getSession(token);
 
             if (cached.isPresent()) {
-                // Cache HIT: validar que la sesión aún está activa
                 JwtSessionCacheDto dto = cached.get();
                 if (isCachedSessionActive(dto)) {
                     setAuthentication(dto.getEmail(), dto.getRoleCode());
                 } else {
-                    // Sesión invalidada (logout) pero aún en caché como inactiva
                     SecurityContextHolder.clearContext();
                 }
             } else {
-                // Cache MISS: consultar BD y poblar el caché
                 AuthSession session = authSessionRepository.findByToken(token)
                         .filter(this::isActive)
                         .orElseThrow(() -> new IllegalArgumentException("Sesion invalida"));
 
-                // Guardar en Redis para futuros requests
-                jwtSessionCacheService.cacheSession(session);
-
-                setAuthentication(session.getUser().getEmail(), session.getUser().getRole().getCode());
+                jwtSessionCacheService.cacheSession(session, email, roleCode);
+                setAuthentication(email, roleCode);
             }
         } catch (Exception exception) {
             SecurityContextHolder.clearContext();
@@ -92,6 +88,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return null;
         }
         return header.substring(7);
+    }
+
+    private String getStringClaim(Map<String, Object> claims, String name) {
+        Object value = claims.get(name);
+        if (value == null || value.toString().isBlank()) {
+            throw new IllegalArgumentException("Token sin claim requerido: " + name);
+        }
+        return value.toString();
     }
 
     private boolean isActive(AuthSession session) {

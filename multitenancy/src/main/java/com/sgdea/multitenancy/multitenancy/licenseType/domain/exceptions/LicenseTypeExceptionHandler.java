@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-@RestControllerAdvice(basePackages = "com.sgdea.multitenancy.multitenancy.entrypoints.licenseType")
+@RestControllerAdvice(basePackages = "com.sgdea.multitenancy.multitenancy.licenseType.entryPoints.rest")
 public class LicenseTypeExceptionHandler {
 
     @ExceptionHandler(EntityNotFoundException.class)

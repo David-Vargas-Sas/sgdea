@@ -8,6 +8,7 @@ import org.springframework.core.Ordered;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
@@ -102,7 +103,7 @@ public class JwtClaimsRelayFilter implements GlobalFilter, Ordered {
         return ORDER;
     }
 
-    private String getClaimAsString(org.springframework.security.oauth2.jwt.Jwt jwt, String claimName) {
+    private String getClaimAsString(Jwt jwt, String claimName) {
         Object claim = jwt.getClaim(claimName);
         return claim != null ? claim.toString() : "";
     }

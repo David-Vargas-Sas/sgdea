@@ -81,8 +81,14 @@ public class AuthService implements AuthUseCase {
         CompanyDatabaseConnection connection = getDefaultActiveConnection(company.getId());
         closeActiveSessions(user.getId());
         AuthSession session = createSession(user, company, connection);
-        // Cachear la sesión en Redis para evitar consultas a BD en cada request
-        jwtSessionCacheService.cacheSession(session, user.getEmail(), user.getRole().getCode());
+        // Cachear la sesión en Redis con todos los claims de tenant para evitar consultas a BD
+        jwtSessionCacheService.cacheSession(session,
+                user.getEmail(),
+                user.getId() != null ? user.getId().toString() : "",
+                user.getRole().getCode(),
+                company.getId() != null ? company.getId().toString() : "",
+                company.getCode() != null ? company.getCode() : "",
+                connection.getId() != null ? connection.getId().toString() : "");
         return buildLoginResponse(session);
     }
 
@@ -100,8 +106,17 @@ public class AuthService implements AuthUseCase {
         session.setToken(jwtTokenService.generateToken(session.getUser(), session.getCompany(), session.getConnection(), accessExpiresAt));
         session.setExpiresAt(accessExpiresAt);
         AuthSession saved = authSessionRepository.save(session);
-        // Actualizar el caché con el nuevo token
-        jwtSessionCacheService.cacheSession(saved, session.getUser().getEmail(), session.getUser().getRole().getCode());
+        // Actualizar el caché con el nuevo token y todos los claims de tenant
+        User refreshUser = saved.getUser();
+        Company refreshCompany = saved.getCompany();
+        CompanyDatabaseConnection refreshConnection = saved.getConnection();
+        jwtSessionCacheService.cacheSession(saved,
+                refreshUser.getEmail(),
+                refreshUser.getId() != null ? refreshUser.getId().toString() : "",
+                refreshUser.getRole().getCode(),
+                refreshCompany.getId() != null ? refreshCompany.getId().toString() : "",
+                refreshCompany.getCode() != null ? refreshCompany.getCode() : "",
+                refreshConnection.getId() != null ? refreshConnection.getId().toString() : "");
         return buildLoginResponse(saved);
     }
 

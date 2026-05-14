@@ -50,6 +50,16 @@ logging:
     com.sgdea: DEBUG
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Seguridad — Gateway as Auth Enforcer
+# En produccion: security.enabled=true y el Gateway inyecta X-User-* headers.
+# En dev local (sin Gateway): security.enabled=false permite acceso libre.
+# ─────────────────────────────────────────────────────────────────────────────
+security:
+  enabled: ${SECURITY_ENABLED:false}
+  cors:
+    allowed-origin-patterns: ${SECURITY_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*,https://localhost:*,http://127.0.0.1:*}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Actuator + Micrometer/Prometheus — configuración base (dev)
 # En producción sobreescribir con application-prod.yml.
 # ─────────────────────────────────────────────────────────────────────────────

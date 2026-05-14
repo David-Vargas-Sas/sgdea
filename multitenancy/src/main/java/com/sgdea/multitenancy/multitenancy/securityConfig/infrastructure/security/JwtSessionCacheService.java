@@ -8,8 +8,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.Optional;
 
 @Service
@@ -21,35 +25,38 @@ public class JwtSessionCacheService {
 
     private final RedisTemplate<String, JwtSessionCacheDto> redisTemplate;
 
-    public void cacheSession(AuthSession session) {
-        cacheSession(
-                session.getToken(),
-                session.getUser().getEmail(),
-                session.getUser().getRole().getCode(),
-                session.getActive(),
-                session.getExpiresAt(),
-                session.getLoggedOutAt()
-        );
-    }
-
-    public void cacheSession(AuthSession session, String email, String roleCode) {
+    /**
+     * Cachea la sesion con todos los claims del JWT incluyendo datos de tenant.
+     * Llamado desde JwtAuthenticationFilter (cache MISS) y desde AuthService (login/refresh).
+     */
+    public void cacheSession(AuthSession session, String email, String userId, String roleCode,
+                              String companyId, String companyCode, String connectionId) {
         cacheSession(
                 session.getToken(),
                 email,
+                userId,
                 roleCode,
                 session.getActive(),
                 session.getExpiresAt(),
-                session.getLoggedOutAt()
+                session.getLoggedOutAt(),
+                companyId,
+                companyCode,
+                connectionId
         );
     }
 
-    public void cacheSession(
+
+    private void cacheSession(
             String token,
             String email,
+            String userId,
             String roleCode,
             Boolean active,
             LocalDateTime expiresAt,
-            LocalDateTime loggedOutAt) {
+            LocalDateTime loggedOutAt,
+            String companyId,
+            String companyCode,
+            String connectionId) {
         try {
             Duration ttl = Duration.between(LocalDateTime.now(), expiresAt);
             if (ttl.isNegative() || ttl.isZero()) {
@@ -60,7 +67,11 @@ public class JwtSessionCacheService {
             JwtSessionCacheDto dto = new JwtSessionCacheDto(
                     token,
                     email,
+                    userId,
                     roleCode,
+                    companyId,
+                    companyCode,
+                    connectionId,
                     active,
                     expiresAt,
                     loggedOutAt
@@ -114,7 +125,22 @@ public class JwtSessionCacheService {
     }
 
     private String buildKey(String token) {
-        return KEY_PREFIX + token;
+        return KEY_PREFIX + sha256(token);
+    }
+
+    /**
+     * Genera un hash SHA-256 del token para usarlo como clave en Redis.
+     * Evita exponer el token completo en las claves de Redis (logs, MONITOR, KEYS).
+     */
+    private String sha256(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException ex) {
+            // SHA-256 siempre está disponible en cualquier JVM estándar
+            throw new IllegalStateException("SHA-256 no disponible", ex);
+        }
     }
 
     private String abbreviate(String token) {

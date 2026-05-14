@@ -73,9 +73,15 @@ public class JwtTokenService {
         }
 
         Map<String, Object> claims = decodePayload(parts[1]);
+
         Object expiration = claims.get("exp");
         if (!(expiration instanceof Number) || ((Number) expiration).longValue() < LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)) {
             throw new IllegalArgumentException("Token expirado");
+        }
+
+        Object tokenIssuer = claims.get("iss");
+        if (tokenIssuer == null || !issuer.equals(tokenIssuer.toString())) {
+            throw new IllegalArgumentException("Token con issuer inválido");
         }
 
         return claims;
